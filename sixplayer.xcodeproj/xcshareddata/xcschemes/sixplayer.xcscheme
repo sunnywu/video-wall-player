@@ -64,7 +64,12 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "SKIP_SECONDS"
-            value = "10"
+            value = "60"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "CONTROL_SKIP_SECONDS"
+            value = "300"
             isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>

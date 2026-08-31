@@ -2,3 +2,5 @@
 build/
 sixplayer
 test/
+*.xcuserstate
+*.xcodeproj/project.xcworkspace/xcuserdata/

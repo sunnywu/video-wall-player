@@ -8,14 +8,16 @@
 # Usage:
 #   ./run.sh                       play 6 random videos from ~/Downloads
 #   ./run.sh /path/to/video ...    play these paths (up to 6, overrides random choice)
-#   SKIP=5 ./run.sh                "medium" skip = 5 s (default 10 s)
+#   SKIP=30 ./run.sh               normal skip = 30 s (default 60 s)
+#   CONTROL_SKIP=600 ./run.sh      Control skip = 600 s (default 300 s)
 #   ./run.sh selftest              build UI then auto-exit after SELFTIME s (default 3)
 #   SELFTIME=6 ./run.sh selftest   ...auto-exit after 6 s
 #   ./run.sh render                render self-test: screencaptures all 6 cells, confirms non-black
 #
-# Keys (each video owns one home-row letter -- see README.md full table):
-#   a s d f g h        = video 1..6   forward  +SKIP s
+# Keys (each video owns one letter -- see README.md full table):
+#   a s d z x c        = video 1..6   forward  +SKIP s
 #   Shift + letter     = that video   backward -SKIP s
+#   Control + letter   = use CONTROL_SKIP seconds instead
 #   Option + letter    = that video   toggle mute / unmute
 #   q / Cmd-Q          quit            Esc      show/hide the cheat sheet
 #
@@ -29,7 +31,8 @@ VLC="/Applications/VLC.app/Contents/MacOS"
 
 export DYLD_LIBRARY_PATH="$VLC/lib:${DYLD_LIBRARY_PATH:-}"
 export VLC_PLUGIN_PATH="$VLC/plugins"
-export SKIP_SECONDS="${SKIP:-10}"
+export SKIP_SECONDS="${SKIP:-60}"
+export CONTROL_SKIP_SECONDS="${CONTROL_SKIP:-300}"
 
 cd "$DIR"
 
