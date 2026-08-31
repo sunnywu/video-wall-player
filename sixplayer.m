@@ -11,7 +11,7 @@
 //       Shift + letter   = that video -> backward by SKIP seconds
 //       Control + letter = use the long skip (default 5 minutes)
 //       Option + letter  = that video -> toggle mute (videos start muted)
-//       q / Cmd-Q        = quit          Esc = show/hide the cheat sheet
+//       q / Cmd-Q        = quit          ? / Esc = show/hide the cheat sheet
 //
 //  Build+run via run.sh (which sets DYLD_LIBRARY_PATH / VLC_PLUGIN_PATH). The only
 //  libVLC symbols used are declared here via extern, so the build is immune to
@@ -297,9 +297,14 @@ static int indexForKey(unichar lc)
     return (int)idx;
 }
 
-static void handleKey(unichar lc, BOOL shift, BOOL option, BOOL control)
+static BOOL isCheatToggleKey(unichar typed, unichar rawLc, BOOL shift)
 {
-    if (lc == 27) {                                       /* Esc: toggle cheat sheet */
+    return typed == '?' || rawLc == 27 || (shift && rawLc == '/');
+}
+
+static void handleKey(unichar typed, unichar lc, BOOL shift, BOOL option, BOOL control)
+{
+    if (isCheatToggleKey(typed, lc, shift)) {
         setCheatVisible(!g_cheat);
         return;
     }
@@ -375,7 +380,9 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     if (ks.length == 0) return;
     unichar c = [ks characterAtIndex:0];
     unichar lc = (c >= 'A' && c <= 'Z') ? (unichar)(c + 32) : c;
-    handleKey(lc, shift, option, control);
+    NSString *chars = [e characters];
+    unichar typed = chars.length > 0 ? [chars characterAtIndex:0] : 0;
+    handleKey(typed, lc, shift, option, control);
 }
 @end
 
@@ -401,7 +408,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
       [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
           (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
       @"  Option+letter  toggle that video's sound     (all start MUTED)",
-      @"  q / Cmd-Q    quit            Esc   show/hide this sheet",
+      @"  q / Cmd-Q    quit            ? / Esc   show/hide this sheet",
       @"------------------------------------------------------------",
       @"   cell   key   file                         status"
     ];

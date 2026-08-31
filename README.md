@@ -14,8 +14,9 @@ With no arguments it picks 6 random video files directly from `~/Downloads`
 and starts them together. If there are more than 6 videos, each launch shuffles
 the choice.
 
-A cheat sheet overlays for 9 seconds then hides (**Esc** re‑shows it). The window
-fills the main display, joins all spaces, and stays on top until **q** / **Cmd‑Q**.
+A cheat sheet overlays for 9 seconds then hides. Press `?` to show or hide it;
+Esc still works too.
+The window fills the main display, joins all spaces, and stays on top until **q** / **Cmd‑Q**.
 Click the screen once after it appears so it has keyboard focus.
 
 ## Build In Xcode
@@ -46,7 +47,7 @@ The command-line launcher also builds through the Xcode project:
 * `Control+` letter = **forward** 5 minutes.
 * `Shift+Control+` letter = **backward** 5 minutes.
 * `Option+` letter = **toggle that video's sound** (muted ⇄ playing audio).
-* `q` or **Cmd‑Q** quit · `Esc` show/hide cheat sheet.
+* `q` or **Cmd‑Q** quit · `?` or **Esc** show/hide cheat sheet.
 * Change the normal skip with `SKIP=30 ~/vlc6/run.sh`.
 * Change the Control skip with `CONTROL_SKIP=600 ~/vlc6/run.sh`.
 
