@@ -14,8 +14,8 @@ With no arguments it picks 6 random video files directly from `~/Downloads`
 and starts them together. If there are more than 6 videos, each launch shuffles
 the choice.
 
-A cheat sheet overlays for 9 seconds then hides. Press `?` to show or hide it;
-Esc still works too.
+A centered cheat sheet overlays for 9 seconds then hides. Press `?` to show or
+hide it; Esc still works too.
 The window fills the main display, joins all spaces, and stays on top until **q** / **Cmd‑Q**.
 Click the screen once after it appears so it has keyboard focus.
 

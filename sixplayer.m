@@ -394,9 +394,9 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
 - (void)drawRect:(NSRect)r
 {
     if (!g_cheat) return;                                 /* hidden = pure video */
-    /* panel */
+    NSRect bounds = [self bounds];
     [[NSColor colorWithCalibratedWhite:0 alpha:0.45f] set];
-    NSRectFill([self bounds]);
+    NSRectFill(bounds);
 
     NSMutableParagraphStyle *ps = [[NSMutableParagraphStyle alloc] init];
     ps.alignment = NSTextAlignmentLeft;
@@ -415,10 +415,22 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     NSDictionary *head = @{ NSFontAttributeName: [NSFont systemFontOfSize:15 weight:NSFontWeightMedium],
                             NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:1.0f alpha:0.95f],
                             NSParagraphStyleAttributeName: ps };
-    CGFloat yy = 0.86f * [self bounds].size.height;
+
+    CGFloat margin = bounds.size.width < 480.0f ? 16.0f : 40.0f;
+    CGFloat headerLineHeight = 22.0f;
+    CGFloat cellLineHeight = 20.0f;
+    CGFloat contentWidth = MIN(704.0f, MAX(0.0f, bounds.size.width - (2.0f * margin)));
+    CGFloat contentHeight = MIN((rows.count * headerLineHeight) + (NCELLS * cellLineHeight),
+                                MAX(0.0f, bounds.size.height - (2.0f * margin)));
+    NSRect textRect = NSMakeRect(NSMidX(bounds) - (contentWidth / 2.0f),
+                                 NSMidY(bounds) - (contentHeight / 2.0f),
+                                 contentWidth,
+                                 contentHeight);
+    CGFloat yy = NSMaxY(textRect) - headerLineHeight;
     for (NSString *line in rows) {
-        [line drawAtPoint:NSMakePoint(40, yy) withAttributes:head];
-        yy -= 22;
+        [line drawInRect:NSMakeRect(NSMinX(textRect), yy, textRect.size.width, headerLineHeight)
+          withAttributes:head];
+        yy -= headerLineHeight;
     }
     NSDictionary *cellAttr = @{ NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightRegular],
                                 NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.98f alpha:0.95f],
@@ -434,8 +446,10 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
             i + 1, g_cells[i].letter,
             base, st,
             m ? "MUTED" : "SOUND ON"];
-        [line drawAtPoint:NSMakePoint(60, yy) withAttributes:cellAttr];
-        yy -= 20;
+        [line drawInRect:NSMakeRect(NSMinX(textRect) + 20.0f, yy,
+                                    MAX(0.0f, textRect.size.width - 20.0f), cellLineHeight)
+          withAttributes:cellAttr];
+        yy -= cellLineHeight;
     }
 }
 @end
