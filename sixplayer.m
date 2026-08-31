@@ -11,7 +11,7 @@
 //       Shift + letter   = that video -> backward by SKIP seconds
 //       Control + letter = use the long skip (default 5 minutes)
 //       Option + letter  = that video -> toggle mute (videos start muted)
-//       q / Cmd-Q        = quit          Esc = show/hide the cheat sheet
+//       q / Cmd-Q        = quit          ? = show/hide the cheat sheet
 //
 //  Build+run via run.sh (which sets DYLD_LIBRARY_PATH / VLC_PLUGIN_PATH). The only
 //  libVLC symbols used are declared here via extern, so the build is immune to
@@ -299,7 +299,7 @@ static int indexForKey(unichar lc)
 
 static void handleKey(unichar lc, BOOL shift, BOOL option, BOOL control)
 {
-    if (lc == 27) {                                       /* Esc: toggle cheat sheet */
+    if (lc == '?' || (shift && lc == '/')) {              /* ?: toggle cheat sheet */
         setCheatVisible(!g_cheat);
         return;
     }
@@ -401,7 +401,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
       [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
           (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
       @"  Option+letter  toggle that video's sound     (all start MUTED)",
-      @"  q / Cmd-Q    quit            Esc   show/hide this sheet",
+      @"  q / Cmd-Q    quit            ?     show/hide this sheet",
       @"------------------------------------------------------------",
       @"   cell   key   file                         status"
     ];

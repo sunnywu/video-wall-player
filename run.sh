@@ -19,7 +19,7 @@
 #   Shift + letter     = that video   backward -SKIP s
 #   Control + letter   = use CONTROL_SKIP seconds instead
 #   Option + letter    = that video   toggle mute / unmute
-#   q / Cmd-Q          quit            Esc      show/hide the cheat sheet
+#   q / Cmd-Q          quit            ?        show/hide the cheat sheet
 #
 # NOTE (macOS TCC): the default source is ~/Downloads. If a cell stays black,
 # grant the launching terminal Full Disk Access (System Settings > Privacy &
