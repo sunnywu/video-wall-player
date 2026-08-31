@@ -6,9 +6,10 @@
 //  libvlc_media_player_set_nsobject() (VLC's documented macOS embed), then we seek and
 //  mute it directly with the libVLC C API.
 //
-//  Key map (each video owns one home-row letter on the LEFT hand):
-//       a s d f g h      = video 1..6 -> forward by SKIP seconds (default 10)
+//  Key map (each video owns one letter):
+//       a s d z x c      = video 1..6 -> forward by SKIP seconds (default 60)
 //       Shift + letter   = that video -> backward by SKIP seconds
+//       Control + letter = use the long skip (default 5 minutes)
 //       Option + letter  = that video -> toggle mute (videos start muted)
 //       q / Cmd-Q        = quit          Esc = show/hide the cheat sheet
 //
@@ -76,7 +77,8 @@ static OverlayView    *g_overlay = nil;
 static libvlc_instance_t *g_inst = nil;
 static NSTimer        *g_tick    = nil;
 static BOOL            g_cheat   = YES;
-static long            SKIP_MS = 10000;
+static long            SKIP_MS = 60000;
+static long            CONTROL_SKIP_MS = 300000;
 static int             g_argc = 0;
 static char          **g_argv = NULL;
 
@@ -295,7 +297,7 @@ static int indexForKey(unichar lc)
     return (int)idx;
 }
 
-static void handleKey(unichar lc, BOOL shift, BOOL option)
+static void handleKey(unichar lc, BOOL shift, BOOL option, BOOL control)
 {
     if (lc == 27) {                                       /* Esc: toggle cheat sheet */
         setCheatVisible(!g_cheat);
@@ -308,11 +310,11 @@ static void handleKey(unichar lc, BOOL shift, BOOL option)
     }
     if (shift) {                                           /* Shift + letter -> backward */
         int idx = indexForKey(lc);
-        if (idx >= 0) seekBy(idx, -SKIP_MS);
+        if (idx >= 0) seekBy(idx, -(control ? CONTROL_SKIP_MS : SKIP_MS));
         return;
     }
     int idx = indexForKey(lc);
-    if (idx >= 0) seekBy(idx, +SKIP_MS);                  /* plain letter -> forward */
+    if (idx >= 0) seekBy(idx, +(control ? CONTROL_SKIP_MS : SKIP_MS));
 
     if (lc == 'q') [NSApp terminate:nil];                  /* q / Cmd-Q: quit */
 }
@@ -364,15 +366,16 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
 - (void)keyDown:(NSEvent *)e
 {
     NSUInteger mf = [e modifierFlags];
-    BOOL shift  = (mf & NSEventModifierFlagShift)  != 0;
-    BOOL option = (mf & NSEventModifierFlagOption) != 0;
+    BOOL shift   = (mf & NSEventModifierFlagShift)   != 0;
+    BOOL option  = (mf & NSEventModifierFlagOption)  != 0;
+    BOOL control = (mf & NSEventModifierFlagControl) != 0;
     /* charactersIgnoringModifiers gives the raw key; 'a' may come through uppercase
        when Shift is held, so match on the lower-cased base letter. */
     NSString *ks = [e charactersIgnoringModifiers];
     if (ks.length == 0) return;
     unichar c = [ks characterAtIndex:0];
     unichar lc = (c >= 'A' && c <= 'Z') ? (unichar)(c + 32) : c;
-    handleKey(lc, shift, option);
+    handleKey(lc, shift, option, control);
 }
 @end
 
@@ -393,10 +396,10 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     ps.lineBreakMode = NSLineBreakByClipping;
 
     NSArray *rows = @[
-      @"sixplayer  --  6 videos, fullscreen 3x2. Each video = one home-row letter.",
+      @"sixplayer  --  6 videos, fullscreen 3x2. Each video = one letter.",
       @"------------------------------------------------------------",
-      [NSString stringWithFormat:@"  a s d f g h     forward  +%lds        (Shift+letter = backward -%lds)",
-          (long)(SKIP_MS / 1000), (long)(SKIP_MS / 1000)],
+      [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
+          (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
       @"  Option+letter  toggle that video's sound     (all start MUTED)",
       @"  q / Cmd-Q    quit            Esc   show/hide this sheet",
       @"------------------------------------------------------------",
@@ -451,9 +454,9 @@ static void setCheatVisible(BOOL visible)
 
 static void buildUI(NSArray *paths)
 {
-    g_letters = [NSArray arrayWithObjects: @"a", @"s", @"d", @"f", @"g", @"h", nil];
-    NSLog(@"[sixplayer] libVLC %s, %d cells, skip=%ld s",
-          libvlc_get_version(), NCELLS, (long)(SKIP_MS / 1000));
+    g_letters = [NSArray arrayWithObjects: @"a", @"s", @"d", @"z", @"x", @"c", nil];
+    NSLog(@"[sixplayer] libVLC %s, %d cells, skip=%ld s, control-skip=%ld s",
+          libvlc_get_version(), NCELLS, (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000));
 
     NSRect frame = [[NSScreen mainScreen] frame];
     CGFloat cw = frame.size.width  / COLS;
@@ -618,8 +621,8 @@ static void scheduleSelfTestIfRequested(void)
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
     (void)note;
-    NSLog(@"[sixplayer] start: skip=%ld s, grid=%dx%d, %d cells",
-          (long)(SKIP_MS / 1000), COLS, ROWS, NCELLS);
+    NSLog(@"[sixplayer] start: skip=%ld s, control-skip=%ld s, grid=%dx%d, %d cells",
+          (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000), COLS, ROWS, NCELLS);
 
     g_inst = libvlc_new(0, NULL);
     if (!g_inst) {
@@ -660,6 +663,13 @@ int main(int argc, char **argv)
             char *end = NULL;
             long seconds = strtol(skip, &end, 10);
             if (end != skip && seconds > 0) SKIP_MS = seconds * 1000;
+        }
+
+        const char *controlSkip = getenv("CONTROL_SKIP_SECONDS");
+        if (controlSkip && controlSkip[0]) {
+            char *end = NULL;
+            long seconds = strtol(controlSkip, &end, 10);
+            if (end != controlSkip && seconds > 0) CONTROL_SKIP_MS = seconds * 1000;
         }
 
         NSApplication *app = [NSApplication sharedApplication];

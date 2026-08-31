@@ -30,22 +30,25 @@ The command-line launcher also builds through the Xcode project:
 ~/vlc6/run.sh
 ```
 
-## Key map — each video owns one home‑row letter
+## Key map — each video owns one letter
 
-| Cell | Key | Forward (+) | Backward (−) | Mute ⇄ On |
-|:---:|:---:|:---:|:---:|:---:|
-| 1 | **A** | `A`           | `Shift+A` | `Option+A` |
-| 2 | **S** | `S`           | `Shift+S` | `Option+S` |
-| 3 | **D** | `D`           | `Shift+D` | `Option+D` |
-| 4 | **F** | `F`           | `Shift+F` | `Option+F` |
-| 5 | **G** | `G`           | `Shift+G` | `Option+G` |
-| 6 | **H** | `H`           | `Shift+H` | `Option+H` |
+| Cell | Key | Forward (+1 min) | Backward (-1 min) | Fast Jump (+/-5 min) | Mute On/Off |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | **A** | `A` | `Shift+A` | `Control+A` / `Shift+Control+A` | `Option+A` |
+| 2 | **S** | `S` | `Shift+S` | `Control+S` / `Shift+Control+S` | `Option+S` |
+| 3 | **D** | `D` | `Shift+D` | `Control+D` / `Shift+Control+D` | `Option+D` |
+| 4 | **Z** | `Z` | `Shift+Z` | `Control+Z` / `Shift+Control+Z` | `Option+Z` |
+| 5 | **X** | `X` | `Shift+X` | `Control+X` / `Shift+Control+X` | `Option+X` |
+| 6 | **C** | `C` | `Shift+C` | `Control+C` / `Shift+Control+C` | `Option+C` |
 
-* A plain letter = **forward** a "medium" skip (default **10 s**).
-* `Shift+` letter = **backward** the same skip.
+* A plain letter = **forward** 1 minute.
+* `Shift+` letter = **backward** 1 minute.
+* `Control+` letter = **forward** 5 minutes.
+* `Shift+Control+` letter = **backward** 5 minutes.
 * `Option+` letter = **toggle that video's sound** (muted ⇄ playing audio).
 * `q` or **Cmd‑Q** quit · `Esc` show/hide cheat sheet.
-* Change the skip length with `SKIP=5 ~/vlc6/run.sh`.
+* Change the normal skip with `SKIP=30 ~/vlc6/run.sh`.
+* Change the Control skip with `CONTROL_SKIP=600 ~/vlc6/run.sh`.
 
 Cells are numbered `1→6`, left‑to‑right, top‑to‑bottom:
 ```
@@ -53,8 +56,8 @@ Cells are numbered `1→6`, left‑to‑right, top‑to‑bottom:
 |  1   |  2   |  3     |     a    s    d
 |  A   |  S   |  D     |
 +------+------+--------+
-|  4   |  5   |  6     |     f    g    h
-|  F   |  G   |  H     |
+|  4   |  5   |  6     |     z    x    c
+|  Z   |  X   |  C     |
 +------+------+--------+
 ```
 
@@ -125,7 +128,7 @@ RENDERCHECK result: 6/6 cells rendering -> PASS (all 6 non-black)
 ## Layout
 | File | What |
 |---|---|
-| `run.sh`      | build (if stale) + launch; supports `selftest` / `render` / `SKIP=` / path args |
+| `run.sh`      | build (if stale) + launch; supports `selftest` / `render` / `SKIP=` / `CONTROL_SKIP=` / path args |
 | `sixplayer.m` | the app (Objective‑C + Cocoa, ARC) |
 | `sixplayer.xcodeproj` | Xcode project for building the app bundle |
 
