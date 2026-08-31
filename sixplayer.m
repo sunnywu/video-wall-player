@@ -417,27 +417,20 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
                             NSParagraphStyleAttributeName: ps };
 
     CGFloat margin = bounds.size.width < 480.0f ? 16.0f : 40.0f;
-    CGFloat padX = 28.0f;
-    CGFloat padY = 24.0f;
-    CGFloat headLine = 22.0f;
-    CGFloat cellLine = 20.0f;
-    CGFloat panelWidth = MIN(760.0f, MAX(0.0f, bounds.size.width - (2.0f * margin)));
-    CGFloat panelHeight = MIN((2.0f * padY) + (rows.count * headLine) + (NCELLS * cellLine),
-                              MAX(0.0f, bounds.size.height - (2.0f * margin)));
-    NSRect panelRect = NSMakeRect(NSMidX(bounds) - (panelWidth / 2.0f),
-                                  NSMidY(bounds) - (panelHeight / 2.0f),
-                                  panelWidth,
-                                  panelHeight);
-    NSBezierPath *panel = [NSBezierPath bezierPathWithRoundedRect:panelRect xRadius:8.0f yRadius:8.0f];
-    [[NSColor colorWithCalibratedWhite:0.0f alpha:0.72f] set];
-    [panel fill];
-
-    NSRect textRect = NSInsetRect(panelRect, padX, padY);
-    CGFloat yy = NSMaxY(textRect) - headLine;
+    CGFloat headerLineHeight = 22.0f;
+    CGFloat cellLineHeight = 20.0f;
+    CGFloat contentWidth = MIN(704.0f, MAX(0.0f, bounds.size.width - (2.0f * margin)));
+    CGFloat contentHeight = MIN((rows.count * headerLineHeight) + (NCELLS * cellLineHeight),
+                                MAX(0.0f, bounds.size.height - (2.0f * margin)));
+    NSRect textRect = NSMakeRect(NSMidX(bounds) - (contentWidth / 2.0f),
+                                 NSMidY(bounds) - (contentHeight / 2.0f),
+                                 contentWidth,
+                                 contentHeight);
+    CGFloat yy = NSMaxY(textRect) - headerLineHeight;
     for (NSString *line in rows) {
-        [line drawInRect:NSMakeRect(NSMinX(textRect), yy, textRect.size.width, headLine)
+        [line drawInRect:NSMakeRect(NSMinX(textRect), yy, textRect.size.width, headerLineHeight)
           withAttributes:head];
-        yy -= headLine;
+        yy -= headerLineHeight;
     }
     NSDictionary *cellAttr = @{ NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightRegular],
                                 NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.98f alpha:0.95f],
@@ -454,9 +447,9 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
             base, st,
             m ? "MUTED" : "SOUND ON"];
         [line drawInRect:NSMakeRect(NSMinX(textRect) + 20.0f, yy,
-                                    MAX(0.0f, textRect.size.width - 20.0f), cellLine)
+                                    MAX(0.0f, textRect.size.width - 20.0f), cellLineHeight)
           withAttributes:cellAttr];
-        yy -= cellLine;
+        yy -= cellLineHeight;
     }
 }
 @end
