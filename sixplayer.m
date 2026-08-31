@@ -394,9 +394,9 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
 - (void)drawRect:(NSRect)r
 {
     if (!g_cheat) return;                                 /* hidden = pure video */
-    /* panel */
+    NSRect bounds = [self bounds];
     [[NSColor colorWithCalibratedWhite:0 alpha:0.45f] set];
-    NSRectFill([self bounds]);
+    NSRectFill(bounds);
 
     NSMutableParagraphStyle *ps = [[NSMutableParagraphStyle alloc] init];
     ps.alignment = NSTextAlignmentLeft;
@@ -415,10 +415,29 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     NSDictionary *head = @{ NSFontAttributeName: [NSFont systemFontOfSize:15 weight:NSFontWeightMedium],
                             NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:1.0f alpha:0.95f],
                             NSParagraphStyleAttributeName: ps };
-    CGFloat yy = 0.86f * [self bounds].size.height;
+
+    CGFloat margin = bounds.size.width < 480.0f ? 16.0f : 40.0f;
+    CGFloat padX = 28.0f;
+    CGFloat padY = 24.0f;
+    CGFloat headLine = 22.0f;
+    CGFloat cellLine = 20.0f;
+    CGFloat panelWidth = MIN(760.0f, MAX(0.0f, bounds.size.width - (2.0f * margin)));
+    CGFloat panelHeight = MIN((2.0f * padY) + (rows.count * headLine) + (NCELLS * cellLine),
+                              MAX(0.0f, bounds.size.height - (2.0f * margin)));
+    NSRect panelRect = NSMakeRect(NSMidX(bounds) - (panelWidth / 2.0f),
+                                  NSMidY(bounds) - (panelHeight / 2.0f),
+                                  panelWidth,
+                                  panelHeight);
+    NSBezierPath *panel = [NSBezierPath bezierPathWithRoundedRect:panelRect xRadius:8.0f yRadius:8.0f];
+    [[NSColor colorWithCalibratedWhite:0.0f alpha:0.72f] set];
+    [panel fill];
+
+    NSRect textRect = NSInsetRect(panelRect, padX, padY);
+    CGFloat yy = NSMaxY(textRect) - headLine;
     for (NSString *line in rows) {
-        [line drawAtPoint:NSMakePoint(40, yy) withAttributes:head];
-        yy -= 22;
+        [line drawInRect:NSMakeRect(NSMinX(textRect), yy, textRect.size.width, headLine)
+          withAttributes:head];
+        yy -= headLine;
     }
     NSDictionary *cellAttr = @{ NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightRegular],
                                 NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.98f alpha:0.95f],
@@ -434,8 +453,10 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
             i + 1, g_cells[i].letter,
             base, st,
             m ? "MUTED" : "SOUND ON"];
-        [line drawAtPoint:NSMakePoint(60, yy) withAttributes:cellAttr];
-        yy -= 20;
+        [line drawInRect:NSMakeRect(NSMinX(textRect) + 20.0f, yy,
+                                    MAX(0.0f, textRect.size.width - 20.0f), cellLine)
+          withAttributes:cellAttr];
+        yy -= cellLine;
     }
 }
 @end
