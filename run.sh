@@ -28,7 +28,7 @@
 # Security > Full Disk Access), then launch again.
 #
 set -euo pipefail
-DIR="$HOME/vlc6"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VLC="/Applications/VLC.app/Contents/MacOS"
 
 export DYLD_LIBRARY_PATH="$VLC/lib:${DYLD_LIBRARY_PATH:-}"

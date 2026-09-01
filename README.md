@@ -25,13 +25,31 @@ Click the screen once after it appears so it has keyboard focus.
 
 Open `sixplayer.xcodeproj` in Xcode, select the `sixplayer` scheme, then build or
 run it. The app target links against the VLC libraries inside
-`/Applications/VLC.app`, so keep VLC installed there.
+`/Applications/VLC.app`, so keep VLC installed there for developer builds.
 
 The command-line launcher also builds through the Xcode project:
 
 ```sh
 ~/vlc6/run.sh
 ```
+
+## Create A Shareable App
+
+To create a copyable app for other people:
+
+```sh
+make package
+```
+
+This builds `dist/Video Wall Player.app`, embeds the VLC runtime files it needs,
+signs the app locally, and creates:
+
+* `dist/Video Wall Player.zip` — unzip, then drag the app into Applications.
+* `dist/Video Wall Player.dmg` — open, then drag the app to Applications.
+
+The packaged app does not require VLC to be installed separately. It is locally
+signed, not Apple-notarized, so macOS may require right-click → Open on first
+launch when sharing it outside this Mac.
 
 ## Key map — each video owns one letter
 
@@ -129,7 +147,7 @@ Remove work, and that six paths hand off to the real player in **drop order**.
 It exits non‑zero if any check fails:
 
 ```
-[sixplayer] selection self-test: 33 check(s), 0 failed -> PASS
+[sixplayer] selection self-test: 35 check(s), 0 failed -> PASS
 ```
 
 This is the test for "the drop rules are right" — it runs anywhere, even from an

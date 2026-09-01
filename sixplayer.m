@@ -13,8 +13,8 @@
 //       Option + letter  = that video -> toggle mute (videos start muted)
 //       q / Cmd-Q        = quit          ? / Esc = show/hide the cheat sheet
 //
-//  Build+run via run.sh (which sets DYLD_LIBRARY_PATH / VLC_PLUGIN_PATH). The only
-//  libVLC symbols used are declared here via extern, so the build is immune to
+//  Build+run via run.sh or package as a self-contained app. The only libVLC
+//  symbols used are declared here via extern, so the build is immune to
 //  version-specific libvlc.h drift.
 //
 #import <Cocoa/Cocoa.h>
@@ -144,17 +144,44 @@ static void shufflePaths(NSMutableArray *items)
     }
 }
 
+static NSString *bundledVLCPath(NSString *child)
+{
+    NSString *resourceRoot = NSBundle.mainBundle.resourcePath;
+    if (resourceRoot.length == 0) return nil;
+
+    NSString *candidate = [[resourceRoot stringByAppendingPathComponent:@"vlc"]
+                              stringByAppendingPathComponent:child];
+    BOOL isDir = NO;
+    if ([NSFileManager.defaultManager fileExistsAtPath:candidate isDirectory:&isDir] && isDir)
+        return candidate;
+    return nil;
+}
+
+static void setEnvPathIfUnset(const char *name, NSString *path, const char *label)
+{
+    const char *current = getenv(name);
+    if (current && current[0]) return;
+    if (path.length == 0) return;
+
+    if (setenv(name, path.fileSystemRepresentation, 0) == 0) {
+        NSLog(@"[sixplayer] %s defaulted to %s", name, label);
+    } else {
+        NSLog(@"[sixplayer] WARNING: failed to set %s to %s", name, label);
+    }
+}
+
 static void configureVLCRuntimePaths(void)
 {
-    const char *plugins = getenv("VLC_PLUGIN_PATH");
-    if (plugins && plugins[0]) return;
-
-    const char *defaultPlugins = "/Applications/VLC.app/Contents/MacOS/plugins";
-    if (setenv("VLC_PLUGIN_PATH", defaultPlugins, 0) == 0) {
-        NSLog(@"[sixplayer] VLC_PLUGIN_PATH defaulted to %s", defaultPlugins);
+    NSString *plugins = bundledVLCPath(@"plugins");
+    if (plugins) {
+        setEnvPathIfUnset("VLC_PLUGIN_PATH", plugins, "bundled VLC plugins");
     } else {
-        NSLog(@"[sixplayer] WARNING: failed to set VLC_PLUGIN_PATH to %s", defaultPlugins);
+        setEnvPathIfUnset("VLC_PLUGIN_PATH", @"/Applications/VLC.app/Contents/MacOS/plugins",
+                          "/Applications/VLC.app plugins");
     }
+
+    NSString *share = bundledVLCPath(@"share");
+    if (share) setEnvPathIfUnset("VLC_DATA_PATH", share, "bundled VLC data");
 }
 
 static BOOL ensureLibVLCInstance(void)
@@ -630,7 +657,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     ps.lineBreakMode = NSLineBreakByClipping;
 
     NSArray *rows = @[
-      @"sixplayer  --  6 videos, fullscreen 3x2. Each video = one letter.",
+      @"Video Wall Player  --  6 videos, fullscreen 3x2. Each video = one letter.",
       @"------------------------------------------------------------",
       [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
           (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
@@ -1082,7 +1109,7 @@ static void installMinimalMenu(void)
                        styleMask:sm
                          backing:NSBackingStoreBuffered
                            defer:NO];
-        _window.title               = @"sixplayer -- pick 6 videos";
+        _window.title               = @"Video Wall Player -- pick 6 videos";
         _window.delegate            = self;
         _window.releasedWhenClosed = NO;
         [_window setMinSize:NSMakeSize(460.0f, 440.0f)];
