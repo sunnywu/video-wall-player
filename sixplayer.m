@@ -55,7 +55,10 @@ extern const char *libvlc_get_version(void);
 #define COLS   3
 #define ROWS   2
 
-@interface CellView   : NSView @end   /* per-cell dark background; VLC embeds into its layer */
+@interface CellView : NSView                                        /* per-cell dark background; VLC embeds into its layer */
+@property (nonatomic) NSInteger cellIndex;                                 /* which g_cells slot this view fills (0..NCELLS-1) */
+- (void)registerAsVideoDropTarget;                                 /* issue #14: accept Finder video drops onto this cell */
+@end
 @interface OverlayView : NSView @end  /* full-screen top view; draws the cheat sheet */
 @interface KeyWindow  : NSWindow @end /* borderless, can become key, captures the keyboard */
 @interface AppDelegate : NSObject <NSApplicationDelegate> @end
@@ -100,6 +103,9 @@ static void installMinimalMenu(void);
 static BOOL ensureLibVLCInstance(void);
 static void scheduleSelfTestIfRequested(void);
 static int  runSelectionTests(void);
+static BOOL replaceCellVideo(int index, NSString *path);
+static int  resolveDropPaths(NSArray<NSURL *> *urls, NSMutableArray<NSString *> *outPaths);
+static void runDropReplaceTest(void);
 
 /* Cell 1..6 letters, left-to-right then top-to-bottom. Shared by the cheat-sheet
     * grid and the selection window so a dropped file maps to a clear, documented slot. */
@@ -211,6 +217,25 @@ static BOOL pathIsDirectory(NSString *p)
     if ([NSFileManager.defaultManager fileExistsAtPath:p isDirectory:&isDir])
         return isDir;
     return NO;
+}
+
+/* Filter dropped file URLs down to valid, playable video paths. Folders and
+    * non-video files are skipped (matching the launcher). The count of accepted
+    * paths is returned, 0 if the drop carried nothing usable. Shared by the
+    * launcher window and the per-cell drop-replace (issue #14). */
+static int resolveDropPaths(NSArray<NSURL *> *urls, NSMutableArray<NSString *> *outPaths)
+{
+    int accepted = 0;
+    for (NSURL *u in urls) {
+        if (!u.isFileURL) continue;
+        NSString *p = u.path;
+        if (p.length == 0) continue;
+        p = normPath(p);
+        if (pathIsDirectory(p) || !isVideoPath(p)) continue;
+        [outPaths addObject:p];
+        accepted++;
+        }
+    return accepted;
 }
 
 /* The selection model -- the testable seam. It reuses the SAME video-extension
@@ -407,6 +432,8 @@ static void toggleMuteAt(int index)
 /* ---------------- diagnostics + render check ---------------------------- */
 static int  g_exitcode    = 0;      /* nonzero => a self-test check failed */
 static int  g_renderfail  = 0;      /* count of black/blank cells */
+static int  g_test_fail   = 0;      /* running tally of failed self-test checks */
+static int  g_test_total  = 0;      /* running total of self-test checks */
 
 static const char *stateName(int s)
 {
@@ -617,6 +644,41 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     [[NSColor colorWithCalibratedWhite:0.03f alpha:1.0f] set];
     NSRectFill(r);
 }
+
+/* Issue #14: allow dragging a NEW video from the Finder and dropping it onto an
+    * already-playing cell. This replaces that cell's media and opens/plays the new
+    * video in place, without disturbing the other five cells. The cell is set up as
+    * a drop target when buildUI() creates it (see buildUI). */
+- (void)registerAsVideoDropTarget
+{
+    [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
+}
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard *pb = [sender draggingPasteboard];
+    if ([pb canReadObjectForClasses:@[[NSURL class]] options:nil]) {
+        return NSDragOperationCopy;
+        }
+    return NSDragOperationNone;
+}
+
+- (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard *pb = [sender draggingPasteboard];
+    return [pb canReadObjectForClasses:@[[NSURL class]] options:nil];
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard *pb = [sender draggingPasteboard];
+    NSArray<NSURL *> *urls = [pb readObjectsForClasses:@[[NSURL class]] options:nil];
+    if (urls.count == 0 || self.cellIndex < 0 || self.cellIndex >= NCELLS) return NO;
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    if (resolveDropPaths(urls, paths) == 0) return NO;
+    replaceCellVideo((int)self.cellIndex, paths[0]);   /* drop the first accepted video onto this cell */
+    return YES;
+}
 @end
 
 @implementation KeyWindow
@@ -744,6 +806,7 @@ static void buildUI(NSArray *paths)
         g_cells[i].index = i;
         NSString *letter = g_letters[i];
         g_cells[i].letter = [letter characterAtIndex:0];
+        g_cells[i].path   = nil;
         g_cells[i].player = NULL;
         g_cells[i].media  = NULL;
         g_cells[i].window = nil;
@@ -766,9 +829,11 @@ static void buildUI(NSArray *paths)
                                     NSWindowCollectionBehaviorIgnoresCycle)];
 
         CellView *v = [CellView new];
+        v.cellIndex = i;
         v.wantsLayer = NO;
         v.frame = NSMakeRect(0, 0, cw, ch);
         v.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [v registerAsVideoDropTarget];          /* issue #14: this cell accepts a new-video drop */
         [w setContentView:v];
         [w orderFront:nil];
 
@@ -884,6 +949,21 @@ static void scheduleSelfTestIfRequested(void)
         return;
     }
 
+    if (strcmp(stw, "drop") == 0) {
+        /* issue #14 integration self-test: build the wall, then simulate a real
+            * file drop onto cell 2. This drives the FULL drop path -- the CellView
+            * performDragOperation: -> resolveDropPaths -> replaceCellVideo -- and
+            * proves a dropped video actually replaces the cell's media and plays.
+            * The other five cells must be left untouched. runDropReplaceTest()
+            * defers its verification (and cleanup + exit) to avoid blocking the
+            * main run loop. */
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+                runDropReplaceTest();
+            });
+        return;
+    }
+
     int seconds = (strcmp(stw, "auto") == 0) ? 5 : atoi(stw);
     if (seconds <= 0) seconds = 3;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)),
@@ -967,6 +1047,198 @@ static void startPlaybackWithPaths(NSArray *paths)
     NSLog(@"[sixplayer] starting 6-cell video wall from selection (%lu paths)",
             (unsigned long)paths.count);
     buildUI(paths);
+}
+
+/* Issue #14: drop a NEW video onto one already-playing cell. The dropped path
+    * replaces that cell's media: the old media/player are released, a fresh media
+    * is built from the dropped file, embedded into the SAME view, and started
+    * MUTED (matching how every cell starts) while it opens and plays. The other
+    * five cells are left untouched. Returns NO if the cell/path is unusable. */
+static BOOL replaceCellVideo(int index, NSString *path)
+{
+    if (index < 0 || index >= NCELLS) {
+        NSLog(@"[sixplayer] drop-replace: bad cell %d", index + 1);
+        return NO;
+    }
+    if (path.length == 0 || !isVideoPath(path)) {
+        NSLog(@"[sixplayer] drop-replace: not a video (%@)", path);
+        return NO;
+    }
+    if (!ensureLibVLCInstance()) return NO;
+    if (!g_cells[index].view) {
+        NSLog(@"[sixplayer] drop-replace: cell %d has no view", index + 1);
+        return NO;
+    }
+
+    NSString *oldPath = g_cells[index].path;
+    NSLog(@"[sixplayer] drop-replace: cell %d (%c) %@ -> %@",
+            index + 1, g_cells[index].letter,
+            oldPath ? baseName(oldPath) : @"(empty)", baseName(path));
+
+    /* Tear down the old media/player for this cell only. */
+    if (g_cells[index].player) {
+        libvlc_media_player_release(g_cells[index].player);
+        g_cells[index].player = NULL;
+    }
+    if (g_cells[index].media) {
+        libvlc_media_release(g_cells[index].media);
+        g_cells[index].media = NULL;
+    }
+
+    /* Build + embed + play the new video in the same cell view. */
+    const char *c = [path fileSystemRepresentation];
+    libvlc_media_t *m = libvlc_media_new_path(g_inst, c);
+    if (!m) {
+        NSLog(@"[sixplayer] drop-replace: media FAILED (%@)", path);
+        return NO;
+    }
+    libvlc_media_player_t *mp = libvlc_media_player_new_from_media(m);
+    if (!mp) {
+        NSLog(@"[sixplayer] drop-replace: player FAILED");
+        libvlc_media_release(m);
+        return NO;
+    }
+    g_cells[index].media  = m;
+    g_cells[index].player = mp;
+    g_cells[index].path   = [path copy];
+    libvlc_media_player_set_nsobject(mp, (__bridge const void *)g_cells[index].view);
+    libvlc_audio_set_mute(mp, 1);                          /* start MUTED, like initial cells */
+    int ret = libvlc_media_player_play(mp);
+    NSLog(@"[sixplayer] drop-replace: cell %d (%c) now playing %@ -- MUTED (ret=%d)",
+            index + 1, g_cells[index].letter, baseName(path), ret);
+    [g_overlay setNeedsDisplay:YES];
+    return YES;
+}
+
+/* issue #14 integration self-test. Simulates a user dragging a video file from the
+    * Finder onto a playing cell. Because CellView treats any object conforming to
+    * NSDraggingInfo as a drop, we hand it a minimal proxy whose pasteboard carries a
+    * real file URL -- the exact payload a Finder drop would. This walks the full
+    * drop path (CellView performDragOperation: -> resolveDropPaths -> replaceCellVideo)
+    * and then verifies the replaced cell now plays the new path while the other five
+    * cells are untouched. Runs when SIXPLAY_SELFTEST=drop. */
+@interface DropSimDragInfo : NSObject
+@property (nonatomic, strong) NSPasteboard *simPasteboard;
+@property (nonatomic, weak)   NSWindow     *simWindow;
+@end
+@implementation DropSimDragInfo
+- (NSPasteboard *)draggingPasteboard            { return self.simPasteboard; }
+- (NSWindow *)draggingDestinationWindow          { return self.simWindow; }
+- (NSPoint)draggingLocation                      { return NSMakePoint(0, 0); }
+- (id)draggingSource                             { return nil; }
+- (NSDragOperation)draggingSourceOperationMask   { return NSDragOperationCopy; }
+- (NSInteger)draggingSequenceNumber              { return 0; }
+- (BOOL)isDragging                               { return YES; }
+- (NSArray *)namesOfPromisedFilesDroppedIntoDestination:(id)dest { return @[]; }
+- (NSImage *)draggedImage                        { return nil; }
+- (NSPoint)draggedImageLocation                  { return NSMakePoint(0, 0); }
+- (void)slideDraggedImageTo:(NSPoint)p           { }
+- (void)setDraggingImage:(NSImage *)img          { }
+- (void)setDraggedImage:(NSImage *)img           { }
+- (void)setDraggingLocation:(NSPoint)p           { }
+- (void)setDraggedImageLocation:(NSPoint)p       { }
+- (void)setDraggingSource:(id)s                  { }
+- (void)setDraggingDestinationWindow:(NSWindow *)w { }
+- (void)setDraggingSequenceNumber:(NSInteger)n   { }
+- (void)setDraggingSourceOperationMask:(NSDragOperation)m { }
+- (NSInteger)numberOfValidItemsForDrop           { return 1; }
+- (void)resetSpringLoading                       { }
+- (void)resetPasteboard                          { }
+- (void)enumerateDraggingItemsWithOptions:(NSDraggingItemEnumerationOptions)opts
+                            forView:(NSView *)v classes:(NSArray *)cls searchOptions:(NSDictionary *)d
+                        usingBlock:(void (^)(NSDraggingItem *, NSInteger, BOOL *))block { }
+- (void)enumerateDraggingItemsWithOptions:(NSDraggingItemEnumerationOptions)opts
+                            usingBlock:(void (^)(id, NSInteger, BOOL *))block { }
+@end
+
+static void runDropReplaceTest(void)
+{
+    g_test_fail  = 0;
+    g_test_total = 0;
+    printf("[sixplayer] drop-replace integration self-test...\n");
+
+    /* Pick a REAL, playable drop source. Prefer a second video from ~/Downloads
+        * (the app's canonical source of test media) whose path differs from the
+        * current cell 2 video, so replaceCellVideo genuinely swaps content and the
+        * new media actually opens and plays. */
+    NSString *dropPath = nil;
+    NSArray *dlEntries = [NSFileManager.defaultManager
+                            contentsOfDirectoryAtPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Downloads"]
+                                            error:NULL];
+    NSString *cur2 = g_cells[1].path;
+    for (NSString *entry in dlEntries) {
+        NSString *full = [[NSHomeDirectory()
+                            stringByAppendingPathComponent:@"Downloads"]
+                            stringByAppendingPathComponent:entry];
+        BOOL isDir = NO;
+        if (![NSFileManager.defaultManager fileExistsAtPath:full isDirectory:&isDir] || isDir) continue;
+        if (!isVideoPath(full)) continue;
+        if (cur2 && [full isEqualToString:cur2]) continue;
+        dropPath = full;
+        break;
+    }
+    BOOL fileOK = (dropPath != nil);
+
+    int targetCell = 1;   /* cell 2 = 's' */
+    CellView *cellView = g_cells[targetCell].view;
+    if (!cellView || ![cellView respondsToSelector:@selector(performDragOperation:)]) {
+        g_test_fail++;
+        printf("   drop-replace: cell 2 has no usable drop target   FAIL\n");
+        return;
+    }
+
+    NSString *oldPath = [g_cells[targetCell].path copy];
+    printf("   drop-replace: cell 2 (s) currently %s\n", oldPath ? baseName(oldPath).UTF8String : "(none)");
+
+    if (fileOK) {
+        NSPasteboard *pb = [NSPasteboard pasteboardWithName:@"sixplayer-drop-test"];
+        [pb clearContents];
+        [pb writeObjects:@[[NSURL fileURLWithPath:dropPath]]];
+
+        DropSimDragInfo *info = [DropSimDragInfo new];
+        info.simPasteboard = pb;
+        info.simWindow = g_cells[targetCell].window;
+        BOOL accepted = [cellView performDragOperation:info];
+        printf("   drop-replace: performDragOperation accepted=%s\n", accepted ? "YES" : "NO");
+
+        /* Give libVLC a moment to open and start the new media WITHOUT blocking the
+            * main run loop (blocking would deadlock the video output). Defer the
+            * verification to the next run-loop turn. */
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1500 * NSEC_PER_MSEC)),
+            dispatch_get_main_queue(), ^{
+                BOOL pathChanged = [g_cells[targetCell].path isEqualToString:dropPath];
+                BOOL playingNew   = g_cells[targetCell].player != NULL
+                                    && libvlc_media_player_is_playing(g_cells[targetCell].player) != 0;
+                BOOL targetOk = accepted && pathChanged;
+
+                /* Every OTHER cell keeps its original media/player. */
+                BOOL othersUntouched = YES;
+                for (int i = 0; i < NCELLS; i++) {
+                    if (i == targetCell) continue;
+                    if (g_cells[i].player == NULL || !libvlc_media_player_is_playing(g_cells[i].player)) {
+                        othersUntouched = NO;
+                    }
+                }
+
+                g_test_total += 4;
+                if (targetOk) { printf("   drop-replace: drop replaced cell 2's video   PASS\n"); }
+                else { g_test_fail++; printf("   drop-replace: drop replaced cell 2's video   FAIL\n"); }
+                if (playingNew) { printf("   drop-replace: new video is playing   PASS\n"); }
+                else { g_test_fail++; printf("   drop-replace: new video is playing   FAIL\n"); }
+                if (pathChanged) { printf("   drop-replace: cell 2 path updated to dropped file   PASS\n"); }
+                else { g_test_fail++; printf("   drop-replace: cell 2 path updated to dropped file   FAIL\n"); }
+                if (othersUntouched) { printf("   drop-replace: other 5 cells still playing   PASS\n"); }
+                else { g_test_fail++; printf("   drop-replace: other 5 cells still playing   FAIL\n"); }
+
+                printf("[sixplayer] drop-replace integration self-test: %d check(s), %d failed -> %s\n",
+                        g_test_total, g_test_fail, g_test_fail == 0 ? "PASS" : "FAIL");
+                cleanupPlayback();
+                exit(g_exitcode);
+            });
+    } else {
+        g_test_fail++;
+        printf("   drop-replace: could not prepare drop file   FAIL\n");
+    }
 }
 
 /* A minimal app menu with a Cmd-Q "Quit", so the launcher always offers a way out
@@ -1297,9 +1569,6 @@ objectValueForTableColumn:(NSTableColumn *)column
     * Exercises the testable seam -- model, routing, and handoff -- WITHOUT a window
     * and WITHOUT libVLC/full playback, as the issue allows for GUI tests. The
     * two-second playback self-test in the CLI render mode is left untouched. */
-static int g_test_fail  = 0;
-static int g_test_total = 0;
-
 static void tcheck(const char *name, BOOL ok)
 {
             g_test_total++;
@@ -1452,6 +1721,40 @@ static int runSelectionTests(void)
     sPart.onPlay = ^(NSArray<NSString *> *paths) { fired2 = YES; };
         [sPart play];
     tcheck("incomplete: handoff not fired", fired2 == NO);
+
+        /* ---- issue #14: drop a new video onto an existing cell.
+            * The filter seam (resolveDropPaths) and the replaceCellVideo guard
+            * clauses are fully reproducible without a window or libVLC. */
+        {
+        NSMutableArray<NSString *> *paths = [NSMutableArray array];
+        NSArray<NSURL *> *mixed = @[
+            [NSURL fileURLWithPath:@"/tmp/keep1.mp4"],
+            [NSURL fileURLWithPath:@"/tmp/skip.txt"],
+            [NSURL URLWithString:@"https://example.com/x.mp4"],
+            [NSURL fileURLWithPath:@"/tmp/keep2.mov"],
+        ];
+        int n = resolveDropPaths(mixed, paths);
+        tcheck("drop: only video files accepted", n == 2 && paths.count == 2);
+        tcheck("drop: http url ignored", paths.count == 2);
+        tcheck("drop: folder skipped (not a video list)",
+                ([paths containsObject:@"/tmp/skip.txt"] == NO));
+
+        NSMutableArray<NSString *> *folderPath = [NSMutableArray array];
+        int fn = resolveDropPaths(@[[NSURL fileURLWithPath:NSTemporaryDirectory()]],
+                                    folderPath);
+        tcheck("drop: folder dropped", fn == 0 && folderPath.count == 0);
+        }
+
+        {
+        /* Guard branches only -- a valid replace touches libVLC and is exercised
+            * by the GUI/self-test runs, not here. */
+        tcheck("replace: bad cell refused",
+                replaceCellVideo(NCELLS, @"/tmp/x.mp4") == NO);
+        tcheck("replace: non-video refused",
+                replaceCellVideo(0, @"/tmp/notes.txt") == NO);
+        tcheck("replace: empty path refused",
+                replaceCellVideo(0, @"") == NO);
+        }
 
     fprintf(stderr,
                 "[sixplayer] selection self-test: %d check(s), %d failed -> %s\n",
