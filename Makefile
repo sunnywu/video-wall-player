@@ -23,6 +23,9 @@ seltest:
 selftest:
 	./run.sh selftest
 
+droptest:
+	./run.sh droptest
+
 render:
 	./run.sh render
 
