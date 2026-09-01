@@ -3,7 +3,7 @@ SCHEME := sixplayer
 CONFIGURATION := Release
 BUILD_DIR := $(CURDIR)/build
 
-.PHONY: build binary run package seltest selftest render clean
+.PHONY: build binary run package seltest selftest render whitespace clean
 
 build:
 	xcodebuild -project "$(PROJECT)" -scheme "$(SCHEME)" -configuration "$(CONFIGURATION)" -derivedDataPath "$(BUILD_DIR)/DerivedData" CONFIGURATION_BUILD_DIR="$(BUILD_DIR)"
@@ -25,6 +25,9 @@ selftest:
 
 render:
 	./run.sh render
+
+whitespace:
+	./scripts/check_whitespace.sh
 
 clean:
 	rm -rf "$(BUILD_DIR)" "$(CURDIR)/dist"

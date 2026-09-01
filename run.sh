@@ -39,26 +39,26 @@ export CONTROL_SKIP_SECONDS="${CONTROL_SKIP:-300}"
 cd "$DIR"
 
 if [ ! -x ./sixplayer ] || [ sixplayer.m -nt sixplayer ]; then
-  echo "[run.sh] building sixplayer ..."
-  xcodebuild -project sixplayer.xcodeproj -scheme sixplayer -configuration Release \
-    -derivedDataPath "$DIR/build/DerivedData" \
-    CONFIGURATION_BUILD_DIR="$DIR/build" >/dev/null
-  cp "$DIR/build/sixplayer.app/Contents/MacOS/sixplayer" ./sixplayer
+    echo "[run.sh] building sixplayer ..."
+    xcodebuild -project sixplayer.xcodeproj -scheme sixplayer -configuration Release \
+        -derivedDataPath "$DIR/build/DerivedData" \
+        CONFIGURATION_BUILD_DIR="$DIR/build" >/dev/null
+    cp "$DIR/build/sixplayer.app/Contents/MacOS/sixplayer" ./sixplayer
 fi
 
 mode=run
 case "${1:-}" in
-  selftest) mode=selftest; shift || true ;;
-  render|rendercheck) mode=render; shift || true ;;
-  seltest) mode=seltest; shift || true ;;
+    selftest) mode=selftest; shift || true ;;
+    render|rendercheck) mode=render; shift || true ;;
+    seltest) mode=seltest; shift || true ;;
 esac
 
 if [ "$mode" = selftest ]; then
-  export SIXPLAY_SELFTEST="${SELFTIME:-3}"
-  echo "[run.sh] self-test mode (exit after ${SIXPLAY_SELFTEST}s)"
-  exec ./sixplayer "$@"
+    export SIXPLAY_SELFTEST="${SELFTIME:-3}"
+    echo "[run.sh] self-test mode (exit after ${SIXPLAY_SELFTEST}s)"
+    exec ./sixplayer "$@"
 elif [ "$mode" = render ]; then
-     # screenshot render-check -- needs 'Screen Recording' permission in the terminal
+    # screenshot render-check -- needs 'Screen Recording' permission in the terminal
     echo "[run.sh] render self-test (screencapture-based). Grant Screen Recording if cells read blank."
     echo "[run.sh] run this from a GUI terminal (Terminal/iTerm), NOT an agent or SSH session."
     SIXPLAY_SELFTEST=render ./sixplayer "$@" & apid=$!
@@ -69,10 +69,10 @@ elif [ "$mode" = render ]; then
     echo "[run.sh] render self-test output (from system log):"
     log show --last 40s --predicate 'process == "sixplayer"' 2>/dev/null \
                 | grep -iE 'live players|diag|cell [0-9]+ |RENDER' | sed -n '1,40p'
-   exit "$status"
+    exit "$status"
 elif [ "$mode" = seltest ]; then
-     # Headless: exercises the picker's selection model + launch routing + handoff
-      # WITHOUT a window or libVLC. See runSelectionTests()/SIXPLAY_SELTEST in sixplayer.m.
+    # Headless: exercises the picker's selection model + launch routing + handoff
+    # WITHOUT a window or libVLC. See runSelectionTests()/SIXPLAY_SELTEST in sixplayer.m.
     echo "[run.sh] selection self-test (headless: model + routing + handoff, no VLC)"
     SIXPLAY_SELTEST=1 exec ./sixplayer
 fi
