@@ -15,6 +15,7 @@
 #   SELFTIME=6 ./run.sh selftest     ...auto-exit after 6 s
 #     ./run.sh render                render self-test: screencaptures all 6 cells, confirms non-black
 #     ./run.sh seltest               headless selection/routing checks (no VLC, no window)
+#     ./run.sh droptest              issue #14: simulate dropping a new video onto a cell & verify it plays
 #
 # Keys (each video owns one letter -- see README.md full table):
 #   a s d z x c         = video 1..6   forward   +SKIP s
@@ -22,6 +23,7 @@
 #   Control + letter    = use CONTROL_SKIP seconds instead
 #   Option + letter     = that video   toggle mute / unmute
 #   q / Cmd-Q          quit             ? / Esc  show/hide the cheat sheet
+#   Drag a video onto any cell to swap that cell's video while it plays (#14).
 #
 # NOTE (macOS TCC): the default source is ~/Downloads. If a cell stays black,
 # grant the launching terminal Full Disk Access (System Settings > Privacy &
@@ -44,6 +46,9 @@ if [ ! -x ./sixplayer ] || [ sixplayer.m -nt sixplayer ]; then
         -derivedDataPath "$DIR/build/DerivedData" \
         CONFIGURATION_BUILD_DIR="$DIR/build" >/dev/null
     cp "$DIR/build/sixplayer.app/Contents/MacOS/sixplayer" ./sixplayer
+    # Bare Mach-O copied out of the .app carries a stale Info.plist signature.
+    # Ad-hoc resign so direct runs / self-tests launch without a codesigning kill.
+    codesign --force --sign - ./sixplayer 2>/dev/null || true
 fi
 
 mode=run
@@ -51,12 +56,18 @@ case "${1:-}" in
     selftest) mode=selftest; shift || true ;;
     render|rendercheck) mode=render; shift || true ;;
     seltest) mode=seltest; shift || true ;;
+    droptest) mode=droptest; shift || true ;;
 esac
 
 if [ "$mode" = selftest ]; then
     export SIXPLAY_SELFTEST="${SELFTIME:-3}"
     echo "[run.sh] self-test mode (exit after ${SIXPLAY_SELFTEST}s)"
     exec ./sixplayer "$@"
+elif [ "$mode" = droptest ]; then
+    # issue #14: build the wall, then drive a synthetic file drop onto cell 2 and
+    # verify the new video opens and plays while the other 5 cells are untouched.
+    echo "[run.sh] drop-replace self-test (issue #14)"
+    SIXPLAY_SELFTEST=drop exec ./sixplayer "$@"
 elif [ "$mode" = render ]; then
     # screenshot render-check -- needs 'Screen Recording' permission in the terminal
     echo "[run.sh] render self-test (screencapture-based). Grant Screen Recording if cells read blank."

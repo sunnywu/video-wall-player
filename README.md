@@ -101,6 +101,14 @@ Press **Play** (or **Return**) and the picker closes and the six‑cell wall
 starts — muted by default, per‑video keys, `?`/Esc cheat sheet (see the key
 map below).
 
+**3 — Swap a video mid‑play (drop onto a cell).**
+Once the wall is playing you can **drag a new video from the Finder onto any one
+of the six cells** to replace just that cell: drop a video onto cell **A**, for
+example, and cell A stops, the new file opens, and **plays in place** while the
+other five cells keep running untouched. The replacement starts **muted**, like
+every cell. Only the first accepted video file in the drop is used; folders and
+non‑video files are ignored (same rules as the picker).
+
 **2 — The command line (bypasses the picker).**
 Pass up to six video paths and they play **directly**, with no picker:
 
@@ -144,14 +152,35 @@ touching libVLC, as the issue allows for GUI-level testing. It confirms: folders
 non‑videos / duplicate drops are skipped, the selection caps at six (extras
 reported), the **Play** button toggles only with exactly six selected, Clear /
 Remove work, and that six paths hand off to the real player in **drop order**.
-It exits non‑zero if any check fails:
+It also checks the **drop‑replace filter seam** (only video files are accepted
+onto a cell; folders and non‑videos rejected) and the `replaceCellVideo` guard
+clauses (a bad cell / non‑video / empty path is refused). It also checks that
+the seek progress overlay draws above the startup cheat sheet. It exits
+non‑zero if any check fails:
 
 ```
-[sixplayer] selection self-test: 35 check(s), 0 failed -> PASS
+[sixplayer] selection self-test: 43 check(s), 0 failed -> PASS
 ```
 
 This is the test for "the drop rules are right" — it runs anywhere, even from an
 agent/SSH session, since it needs no GUI.
+
+### Drop‑replace self‑test (issue #14, windowed)
+
+```sh
+~/vlc6/run.sh droptest        # build the wall, drop a new video onto cell 2, verify it plays
+```
+
+`droptest` builds the running six‑cell wall, then drives the **full drop path** —
+it hands cell 2 a real Finder‑style file drop (a file URL on the drag pasteboard)
+through `CellView performDragOperation:` → `replaceCellVideo` and confirms the
+new video **opens and plays** while the other five cells keep playing. It uses a
+video from `~/Downloads` as the dropped source, so it needs a GUI session and
+VLC available:
+
+```
+[sixplayer] drop-replace integration self-test: 4 check(s), 0 failed -> PASS
+```
 
 ## Render self‑test — prove all 6 cells actually paint (not black)
 
@@ -192,23 +221,30 @@ RENDERCHECK result: 6/6 cells rendering -> PASS (all 6 non-black)
 * **Per‑video control** calls straight into libVLC: seek =
   `libvlc_media_player_get_time`+`…_set_time`; sound =
   `libvlc_audio_set_mute` (start, all 6 muted) / `…_toggle_mute` + `…_set_volume`.
+* **Drop‑replace (issue #14):** each `CellView` registers as a Finder drop target.
+  Dropping a video calls `replaceCellVideo(cell, path)`, which releases that cell's
+  old media/player, builds a fresh media from the dropped file, re‑embeds it into the
+  same view, and starts it muted — the replacement opens and plays in the cell.
 * **Header‑drift proof:** the only libVLC symbols are declared via `extern` directly in
   the source, so the build is independent of which version of `libvlc.h` is installed.
 
 ## Layout
 | File | What |
 |---|---|
-| `run.sh`      | build (if stale) + launch; supports `seltest` / `selftest` / `render` / `SKIP=` / `CONTROL_SKIP=` / path args |
+| `run.sh`      | build (if stale) + launch; supports `seltest` / `selftest` / `droptest` / `render` / `SKIP=` / `CONTROL_SKIP=` / path args |
 | `sixplayer.m` | the app + `VideoWallSelection` picker model + `SelectionWindowController` UI + the headless `seltest` |
 | `sixplayer.xcodeproj` | Xcode project for building the app bundle |
 
 ## Verification done
 * Compiles clean on Apple Silicon, links `libvlc.dylib`/`libvlccore.dylib` from the
   system VLC via `@rpath`.
-* `seltest`: the picker's selection model + routing + Play handoff pass all 33
+* `seltest`: the picker's selection model + routing + Play handoff pass all 42
   headless checks (skips folders / non‑videos / duplicates, caps at six with extras
-  reported, Play toggles only with six, Clear/Remove, order‑preserving handoff).
+  reported, Play toggles only with six, Clear/Remove, order‑preserving handoff,
+  plus the drop‑replace filter guards).
 * Self‑test: **all 6 players live**, embedded, starting **muted**.
+* Drop‑replace self-test: **dropping a new video onto a cell replaces and plays
+  it** in place while the other five cells keep playing (4/4 checks pass).
 
 ## Prerequisites
 * VLC at `/Applications/VLC.app` (this machine has 3.0.23 "Vetinari").
