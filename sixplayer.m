@@ -61,8 +61,8 @@ extern const char *libvlc_get_version(void);
 @interface AppDelegate : NSObject <NSApplicationDelegate> @end
 
 /* --- Drag-and-drop launcher (issue #4). The selection model below is
- * intentionally free of an NSWindow and of libVLC, so its behavior can be
- * tested without a window or a full six-cell playback. --- */
+    * intentionally free of an NSWindow and of libVLC, so its behavior can be
+    * tested without a window or a full six-cell playback. --- */
 @class VideoWallSelection;
 @class DropView;
 @interface SelectionWindowController : NSObject
@@ -93,7 +93,7 @@ static char          **g_argv = NULL;
 static SelectionWindowController *g_selector = nil;     /* the launcher window (issue #4) */
 
 /* Forward declarations so the launch router + selection UI can reach the playback
- * startup, the minimal menu, and the selection self-test before they are defined. */
+    * startup, the minimal menu, and the selection self-test before they are defined. */
 static void buildUI(NSArray *paths);
 static void startPlaybackWithPaths(NSArray *paths);
 static void installMinimalMenu(void);
@@ -102,7 +102,7 @@ static void scheduleSelfTestIfRequested(void);
 static int  runSelectionTests(void);
 
 /* Cell 1..6 letters, left-to-right then top-to-bottom. Shared by the cheat-sheet
- * grid and the selection window so a dropped file maps to a clear, documented slot. */
+    * grid and the selection window so a dropped file maps to a clear, documented slot. */
 static const char *kCellLetters[NCELLS] = { "a", "s", "d", "z", "x", "c" };
 
 /* --------------------------------- helpers --------------------------------- */
@@ -150,7 +150,7 @@ static NSString *bundledVLCPath(NSString *child)
     if (resourceRoot.length == 0) return nil;
 
     NSString *candidate = [[resourceRoot stringByAppendingPathComponent:@"vlc"]
-                              stringByAppendingPathComponent:child];
+                                stringByAppendingPathComponent:child];
     BOOL isDir = NO;
     if ([NSFileManager.defaultManager fileExistsAtPath:candidate isDirectory:&isDir] && isDir)
         return candidate;
@@ -177,7 +177,7 @@ static void configureVLCRuntimePaths(void)
         setEnvPathIfUnset("VLC_PLUGIN_PATH", plugins, "bundled VLC plugins");
     } else {
         setEnvPathIfUnset("VLC_PLUGIN_PATH", @"/Applications/VLC.app/Contents/MacOS/plugins",
-                          "/Applications/VLC.app plugins");
+                            "/Applications/VLC.app plugins");
     }
 
     NSString *share = bundledVLCPath(@"share");
@@ -202,8 +202,8 @@ static BOOL ensureLibVLCInstance(void)
 /* ============================================================================ */
 
 /* Return YES when 'p' is an existing directory, so folder drops are ignored even
- * when their name ends in a video extension. A path that does not exist is not a
- * folder (in a test a candidate video need not exist on disk yet). */
+    * when their name ends in a video extension. A path that does not exist is not a
+    * folder (in a test a candidate video need not exist on disk yet). */
 static BOOL pathIsDirectory(NSString *p)
 {
     BOOL isDir = NO;
@@ -214,10 +214,10 @@ static BOOL pathIsDirectory(NSString *p)
 }
 
 /* The selection model -- the testable seam. It reuses the SAME video-extension
- * rule as the command line (isVideoPath / normPath) so the GUI and CLI cannot
- * drift. It ignores folders and duplicates, caps the selection at NCELLS, keeps
- * an ordered path list to hand straight to playback, and has NO NSWindow and NO
- * libVLC dependency -- so launcher behavior is verifiable without full playback. */
+    * rule as the command line (isVideoPath / normPath) so the GUI and CLI cannot
+    * drift. It ignores folders and duplicates, caps the selection at NCELLS, keeps
+    * an ordered path list to hand straight to playback, and has NO NSWindow and NO
+    * libVLC dependency -- so launcher behavior is verifiable without full playback. */
 @interface VideoWallSelection : NSObject
 @property (nonatomic, copy, nullable) void (^onPlay)(NSArray<NSString *> *paths);
 - (instancetype)init;
@@ -251,13 +251,13 @@ static BOOL pathIsDirectory(NSString *p)
 {
     self = [super init];
     if (self) {
-          _paths        = [NSMutableArray array];
-          _seen         = [NSMutableSet set];
-          _reasons      = [NSMutableSet set];
-          _lastAccepted = 0;
-          _lastRejected = 0;
-          [self refreshStatus];
-      }
+            _paths        = [NSMutableArray array];
+            _seen         = [NSMutableSet set];
+            _reasons      = [NSMutableSet set];
+            _lastAccepted = 0;
+            _lastRejected = 0;
+            [self refreshStatus];
+        }
     return self;
 }
 
@@ -269,57 +269,57 @@ static BOOL pathIsDirectory(NSString *p)
 - (NSInteger)lastRejectedCount   { return _lastRejected; }
 
 /* Add a batch of dropped paths. Each candidate is normalized, then screened in
- * priority order: folder -> not-a-video -> duplicate -> over-cap. Everything
- * that passes is appended (in order); the batch's accept/reject tallies + the
- * skip reasons feed the status line. */
+    * priority order: folder -> not-a-video -> duplicate -> over-cap. Everything
+    * that passes is appended (in order); the batch's accept/reject tallies + the
+    * skip reasons feed the status line. */
 - (void)addPaths:(NSArray<NSString *> *)candidate
 {
     NSInteger accepted = 0, rejected = 0;
-      [_reasons removeAllObjects];
+        [_reasons removeAllObjects];
 
     for (id raw in candidate) {
-          if (![raw isKindOfClass:[NSString class]]) { rejected++; continue; }
+            if (![raw isKindOfClass:[NSString class]]) { rejected++; continue; }
         NSString *p = normPath((NSString *)raw);
         if (p.length == 0) continue;
 
-          /* folder first: a directory's name may end in .mp4 yet isn't a video */
+            /* folder first: a directory's name may end in .mp4 yet isn't a video */
         if (pathIsDirectory(p))            { rejected++; [_reasons addObject:@"folder"];         continue; }
         if (!isVideoPath(p))               { rejected++; [_reasons addObject:@"not a video"];    continue; }
         else if ([_seen containsObject:p]) { rejected++; [_reasons addObject:@"duplicate"];      continue; }
         else if (_paths.count >= (NSUInteger)NCELLS) { rejected++; [_reasons addObject:@"selection full"]; continue; }
 
-          [_paths addObject:p];
-          [_seen  addObject:p];
+            [_paths addObject:p];
+            [_seen  addObject:p];
         accepted++;
-      }
+        }
 
-      _lastAccepted = accepted;
-      _lastRejected = rejected;
-      [self refreshStatus];
+        _lastAccepted = accepted;
+        _lastRejected = rejected;
+        [self refreshStatus];
 }
 
 /* Remove one cell (its selected table row). The remaining videos shift up, which
- * drops the count below six and therefore re-disables Play. */
+    * drops the count below six and therefore re-disables Play. */
 - (void)removeAtCell:(NSInteger)index
 {
     if (index < 0 || index >= (NSInteger)_paths.count) return;
     NSString *p = _paths[index];
-      [_paths removeObjectAtIndex:index];
-      [_seen  removeObject:p];
-      _lastAccepted = 0;
-      _lastRejected = 0;
-      [_reasons removeAllObjects];
-      [self refreshStatus];
+        [_paths removeObjectAtIndex:index];
+        [_seen  removeObject:p];
+        _lastAccepted = 0;
+        _lastRejected = 0;
+        [_reasons removeAllObjects];
+        [self refreshStatus];
 }
 
 - (void)clear
 {
-      [_paths  removeAllObjects];
-      [_seen   removeAllObjects];
-      [_reasons removeAllObjects];
-      _lastAccepted = 0;
-      _lastRejected = 0;
-      [self refreshStatus];
+        [_paths  removeAllObjects];
+        [_seen   removeAllObjects];
+        [_reasons removeAllObjects];
+        _lastAccepted = 0;
+        _lastRejected = 0;
+        [self refreshStatus];
 }
 
 /* Fire the handoff only when the selection is exactly six. */
@@ -330,30 +330,30 @@ static BOOL pathIsDirectory(NSString *p)
 }
 
 /* One concise status line: when the most recent drop skipped anything it leads
- * with a short "Skipped N file(s): ..." note, then the current selection state. */
+    * with a short "Skipped N file(s): ..." note, then the current selection state. */
 - (void)refreshStatus
 {
     NSString *base;
     switch ((NSInteger)_paths.count) {
-      case 0:
+        case 0:
         base = [NSString stringWithFormat:@"Drag video files into the window, then press Play (need %d).",
                 NCELLS];
         break;
-      default:
+        default:
         if (_paths.count == (NSUInteger)NCELLS) {
             base = [NSString stringWithFormat:@"%d of %d videos ready -- press Play.", NCELLS, NCELLS];
-          } else {
+            } else {
             base = [NSString stringWithFormat:@"%ld of %ld videos selected -- add %ld more.",
-                     (long)_paths.count, (long)NCELLS, (long)((NSUInteger)NCELLS - _paths.count)];
-          }
+                        (long)_paths.count, (long)NCELLS, (long)((NSUInteger)NCELLS - _paths.count)];
+            }
         break;
-      }
+        }
     if (_lastRejected > 0) {
         NSArray *rs = [_reasons.allObjects sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
         base = [NSString stringWithFormat:@"Skipped %ld file(s): %@. %@",
-                 (long)_lastRejected, [rs componentsJoinedByString:@", "], base];
-      }
-      _status = [base copy];
+                    (long)_lastRejected, [rs componentsJoinedByString:@", "], base];
+        }
+        _status = [base copy];
 }
 @end
 
@@ -365,8 +365,8 @@ typedef NS_ENUM(NSInteger, LaunchKind) {
 };
 
 /* Pure decision, so it can be tested without an NSApplication: a self-test request
- * verifies; positional video paths play directly (bypassing the picker); an
- * ordinary launch shows the picker. */
+    * verifies; positional video paths play directly (bypassing the picker); an
+    * ordinary launch shows the picker. */
 static LaunchKind computeLaunchKind(int argc, char **argv, const char *selftestEnv)
 {
     if (selftestEnv && selftestEnv[0]) return LaunchSelfTest;
@@ -386,7 +386,7 @@ static void seekBy(int index, long deltaMs)
     if (nt < 0) nt = 0;
     libvlc_media_player_set_time(p, nt);
     NSLog(@"[sixplayer] cell %d (%c): seek %+ld s", index + 1, g_cells[index].letter,
-          (long)(deltaMs / 1000));
+            (long)(deltaMs / 1000));
 }
 
 static void toggleMuteAt(int index)
@@ -411,36 +411,36 @@ static int  g_renderfail  = 0;      /* count of black/blank cells */
 static const char *stateName(int s)
 {
     switch (s) {
-      case 1: return "Opening";    case 2: return "Buffering";
-      case 3: return "Playing";    case 4: return "Paused";
-      case 5: return "Stopped";    case 6: return "Ended";
-      case 7: return "Error";      default: return "?";
-      }
+        case 1: return "Opening";    case 2: return "Buffering";
+        case 3: return "Playing";    case 4: return "Paused";
+        case 5: return "Stopped";    case 6: return "Ended";
+        case 7: return "Error";      default: return "?";
+        }
 }
 
 /* Per-cell decode/advance snapshot. Works even headless because it reads the
- * libVLC C API, not the screen -- the answer to "are all 6 decoding?". */
+    * libVLC C API, not the screen -- the answer to "are all 6 decoding?". */
 static void diagCells(const char *phase)
 {
     NSLog(@"[sixplayer] DIAG(%s) per-cell state:", phase);
     for (int i = 0; i < NCELLS; i++) {
         libvlc_media_player_t *p = g_cells[i].player;
         if (!p) { NSLog(@"[sixplayer]   cell %d (%c): NO PLAYER", i + 1, g_cells[i].letter);
-                  continue; }
+                    continue; }
         int   st       = libvlc_media_player_get_state(p);
         int64_t t      = libvlc_media_player_get_time(p);    /* milliseconds */
         int   playing  = libvlc_media_player_is_playing(p);
         int   muted    = libvlc_audio_get_mute(p);
         int   ok = (st == 3);                                /* 3 == Playing */
         NSLog(@"[sixplayer]   cell %d (%c): state=%s t=%lldms playing=%d mute=%d%s",
-              i + 1, g_cells[i].letter, stateName(st),
-               (long long)t, playing, muted, ok ? "" : "    <- NOT PLAYING");
-      }
+                i + 1, g_cells[i].letter, stateName(st),
+                (long long)t, playing, muted, ok ? "" : "    <- NOT PLAYING");
+        }
 }
 
 /* Sample one cell's inner region of a snapshot -> luminance max/min (0..255) */
 static void cellLums(CGImageRef img, size_t x0, size_t y0, size_t x1, size_t y1,
-                     long *outMax, long *outMin)
+                        long *outMax, long *outMin)
 {
     size_t W = CGImageGetWidth(img), H = CGImageGetHeight(img);
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
@@ -459,7 +459,7 @@ static void cellLums(CGImageRef img, size_t x0, size_t y0, size_t x1, size_t y1,
             n++;
             if (l > mx)  mx = l;
             if (l < mn)  mn = l;
-          }
+            }
     CGContextRelease(ctx);
     CGColorSpaceRelease(cs);
     free(buf);
@@ -468,10 +468,10 @@ static void cellLums(CGImageRef img, size_t x0, size_t y0, size_t x1, size_t y1,
 }
 
 /* Snapshot the full screen via Apple's 'screencapture' and prove none of the 6
- * cells is (near-)blank. A second capture ~0.6s later also detects motion, so a
- * momentarily-dark-but-playing cell still passes. 'screencapture' is Apple-signed
- * and handles Screen-Recording permission for us; if it returns nothing we FAIL
- * loudly (g_exitcode=4) instead of silently passing. */
+    * cells is (near-)blank. A second capture ~0.6s later also detects motion, so a
+    * momentarily-dark-but-playing cell still passes. 'screencapture' is Apple-signed
+    * and handles Screen-Recording permission for us; if it returns nothing we FAIL
+    * loudly (g_exitcode=4) instead of silently passing. */
 static void renderCheckCells(void)
 {
     g_renderfail = 0;
@@ -485,7 +485,7 @@ static void renderCheckCells(void)
     NSLog(@"[sixplayer] RENDERCHECK screenshot: %s", path1);
 
     CGImageSourceRef src1 = CGImageSourceCreateWithURL(
-          (__bridge CFURLRef)[NSURL fileURLWithPath:[NSString stringWithUTF8String:path1]], NULL);
+            (__bridge CFURLRef)[NSURL fileURLWithPath:[NSString stringWithUTF8String:path1]], NULL);
     CGImageRef img1 = src1 ? CGImageSourceCreateImageAtIndex(src1, 0, NULL) : nil;
     if (src1) CFRelease(src1);
     if (!img1) {
@@ -496,7 +496,7 @@ static void renderCheckCells(void)
         g_renderfail = NCELLS;
         if (g_exitcode < 4) g_exitcode = 4;
         return;
-      }
+        }
 
     size_t W = CGImageGetWidth(img1), H = CGImageGetHeight(img1);
     CGFloat cw = (CGFloat)W / COLS, ch = (CGFloat)H / ROWS;
@@ -506,14 +506,14 @@ static void renderCheckCells(void)
     int rc2 = system(c2);
     (void)rc2;
     CGImageSourceRef src2 = CGImageSourceCreateWithURL(
-          (__bridge CFURLRef)[NSURL fileURLWithPath:[NSString stringWithUTF8String:path2]], NULL);
+            (__bridge CFURLRef)[NSURL fileURLWithPath:[NSString stringWithUTF8String:path2]], NULL);
     CGImageRef img2 = src2 ? CGImageSourceCreateImageAtIndex(src2, 0, NULL) : nil;
     if (src2) CFRelease(src2);
 
     for (int i = 0; i < NCELLS; i++) {
         int col = i % COLS, row = i / COLS;
-          /* Cocoa origin = bottom-left; capture origin = top-left, so the display
-           * row counted from the top is (ROWS-1-row). */
+            /* Cocoa origin = bottom-left; capture origin = top-left, so the display
+            * row counted from the top is (ROWS-1-row). */
         size_t x0 = (size_t)((CGFloat)col       * cw);
         size_t y0 = (size_t)((CGFloat)row       * ch);
         size_t x1 = (size_t)((CGFloat)(col + 1) * cw);
@@ -528,17 +528,17 @@ static void renderCheckCells(void)
         int active = (mx1 > 16 || range1 > 22 || mx2 > 16 || range2 > 22 || dmax > 10);
 
         NSLog(@"[sixplayer] cell %d (%c) RENDER: maxLum=%ld range=%ld f2max=%ld f2range=%ld move=%ld -> %s",
-              i + 1, g_cells[i].letter, mx1, range1, mx2, range2, dmax,
-              active ? "PASS" : "FAIL (black/blank)");
+                i + 1, g_cells[i].letter, mx1, range1, mx2, range2, dmax,
+                active ? "PASS" : "FAIL (black/blank)");
         if (!active) g_renderfail++;
-      }
+        }
 
     if (img2) CGImageRelease(img2);
     CGImageRelease(img1);
     remove(path2);
     NSLog(@"[sixplayer] RENDERCHECK result: %d/%d cells rendering -> %s",
-          NCELLS - g_renderfail, NCELLS,
-          g_renderfail == 0 ? "PASS (all 6 non-black)" : "FAIL (blank cells)");
+            NCELLS - g_renderfail, NCELLS,
+            g_renderfail == 0 ? "PASS (all 6 non-black)" : "FAIL (blank cells)");
     if (g_renderfail > 0 && g_exitcode < 3) g_exitcode = 3;
 }
 
@@ -587,7 +587,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     for (int n = 1; n < argc && added < NCELLS; n++) {
         const char *a = argv[n];
         if (!a || !a[0]) continue;
-         [paths addObject:normPath([NSString stringWithUTF8String:a])];
+            [paths addObject:normPath([NSString stringWithUTF8String:a])];
         added++;
     }
     if (added > 0) return;
@@ -629,7 +629,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     BOOL option  = (mf & NSEventModifierFlagOption)  != 0;
     BOOL control = (mf & NSEventModifierFlagControl) != 0;
     /* charactersIgnoringModifiers gives the raw key; 'a' may come through uppercase
-       when Shift is held, so match on the lower-cased base letter. */
+        when Shift is held, so match on the lower-cased base letter. */
     NSString *ks = [e charactersIgnoringModifiers];
     if (ks.length == 0) return;
     unichar c = [ks characterAtIndex:0];
@@ -657,14 +657,14 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     ps.lineBreakMode = NSLineBreakByClipping;
 
     NSArray *rows = @[
-      @"Video Wall Player  --  6 videos, fullscreen 3x2. Each video = one letter.",
-      @"------------------------------------------------------------",
-      [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
-          (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
-      @"  Option+letter  toggle that video's sound     (all start MUTED)",
-      @"  q / Cmd-Q    quit            ? / Esc   show/hide this sheet",
-      @"------------------------------------------------------------",
-      @"   cell   key   file                         status"
+        @"Video Wall Player  --  6 videos, fullscreen 3x2. Each video = one letter.",
+        @"------------------------------------------------------------",
+        [NSString stringWithFormat:@"  a s d z x c     forward  +%lds        (Shift = back, Control = %ldm)",
+            (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 60000)],
+        @"  Option+letter  toggle that video's sound     (all start MUTED)",
+        @"  q / Cmd-Q    quit            ? / Esc   show/hide this sheet",
+        @"------------------------------------------------------------",
+        @"   cell   key   file                         status"
     ];
     NSDictionary *head = @{ NSFontAttributeName: [NSFont systemFontOfSize:15 weight:NSFontWeightMedium],
                             NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:1.0f alpha:0.95f],
@@ -677,13 +677,13 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     CGFloat contentHeight = MIN((rows.count * headerLineHeight) + (NCELLS * cellLineHeight),
                                 MAX(0.0f, bounds.size.height - (2.0f * margin)));
     NSRect textRect = NSMakeRect(NSMidX(bounds) - (contentWidth / 2.0f),
-                                 NSMidY(bounds) - (contentHeight / 2.0f),
-                                 contentWidth,
-                                 contentHeight);
+                                    NSMidY(bounds) - (contentHeight / 2.0f),
+                                    contentWidth,
+                                    contentHeight);
     CGFloat yy = NSMaxY(textRect) - headerLineHeight;
     for (NSString *line in rows) {
         [line drawInRect:NSMakeRect(NSMinX(textRect), yy, textRect.size.width, headerLineHeight)
-          withAttributes:head];
+            withAttributes:head];
         yy -= headerLineHeight;
     }
     NSDictionary *cellAttr = @{ NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightRegular],
@@ -702,7 +702,7 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
             m ? "MUTED" : "SOUND ON"];
         [line drawInRect:NSMakeRect(NSMinX(textRect) + 20.0f, yy,
                                     MAX(0.0f, textRect.size.width - 20.0f), cellLineHeight)
-          withAttributes:cellAttr];
+            withAttributes:cellAttr];
         yy -= cellLineHeight;
     }
 }
@@ -731,10 +731,10 @@ static void buildUI(NSArray *paths)
 {
     NSMutableArray *letterBuf = [NSMutableArray array];
     for (int li = 0; li < NCELLS; li++)
-      [letterBuf addObject:[NSString stringWithUTF8String:kCellLetters[li]]];
+        [letterBuf addObject:[NSString stringWithUTF8String:kCellLetters[li]]];
     g_letters = [letterBuf copy];
     NSLog(@"[sixplayer] libVLC %s, %d cells, skip=%ld s, control-skip=%ld s",
-          libvlc_get_version(), NCELLS, (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000));
+            libvlc_get_version(), NCELLS, (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000));
 
     NSRect frame = [[NSScreen mainScreen] frame];
     CGFloat cw = frame.size.width  / COLS;
@@ -755,15 +755,15 @@ static void buildUI(NSArray *paths)
 
         KeyWindow *w = [[KeyWindow alloc]
             initWithContentRect:cellFrame
-                      styleMask:NSWindowStyleMaskBorderless
-                       backing:NSBackingStoreBuffered
-                         defer:NO];
+                        styleMask:NSWindowStyleMaskBorderless
+                        backing:NSBackingStoreBuffered
+                            defer:NO];
         w.level = NSMainMenuWindowLevel + 4;
         w.backgroundColor = [NSColor blackColor];
         w.opaque = YES;
         w.releasedWhenClosed = NO;
         [w setCollectionBehavior:(NSWindowCollectionBehaviorCanJoinAllSpaces |
-                                  NSWindowCollectionBehaviorIgnoresCycle)];
+                                    NSWindowCollectionBehaviorIgnoresCycle)];
 
         CellView *v = [CellView new];
         v.wantsLayer = NO;
@@ -782,9 +782,9 @@ static void buildUI(NSArray *paths)
     g_overlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     g_overlayWindow = [[KeyWindow alloc]
         initWithContentRect:frame
-                  styleMask:NSWindowStyleMaskBorderless
-                   backing:NSBackingStoreBuffered
-                     defer:NO];
+                    styleMask:NSWindowStyleMaskBorderless
+                    backing:NSBackingStoreBuffered
+                        defer:NO];
     g_overlayWindow.level = NSMainMenuWindowLevel + 5;
     g_overlayWindow.backgroundColor = [NSColor clearColor];
     g_overlayWindow.opaque = NO;
@@ -819,18 +819,18 @@ static void buildUI(NSArray *paths)
         libvlc_audio_set_mute(mp, 1);                          /* ---- start MUTED ---- */
         int ret = libvlc_media_player_play(mp);
         NSLog(@"[sixplayer] cell %d (%c): playing %@ -- MUTED (ret=%d)",
-              i + 1, g_cells[i].letter, baseName(p), ret);
+                i + 1, g_cells[i].letter, baseName(p), ret);
     }
 
     g_tick = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) {
         [g_overlay setNeedsDisplay:YES];
-     }];
+        }];
     [[NSRunLoop mainRunLoop] addTimer:g_tick forMode:NSDefaultRunLoopMode];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(9 * NSEC_PER_SEC)),
         dispatch_get_main_queue(), ^{
             setCheatVisible(NO);
-         });
+            });
 }
 
 /* ------------------------- delegate + self-test ---------------------------- */
@@ -898,48 +898,48 @@ static void scheduleSelfTestIfRequested(void)
 @implementation AppDelegate
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
-      (void)note;
+        (void)note;
     NSLog(@"[sixplayer] start: skip=%ld s, control-skip=%ld s, grid=%dx%d, %d cells",
-           (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000), COLS, ROWS, NCELLS);
+            (long)(SKIP_MS / 1000), (long)(CONTROL_SKIP_MS / 1000), COLS, ROWS, NCELLS);
 
     installMinimalMenu();
 
     LaunchKind kind = computeLaunchKind(g_argc, g_argv, getenv("SIXPLAY_SELFTEST"));
     NSLog(@"[sixplayer] launch kind: %s",
-           kind == LaunchSelfTest ? "self-test"
-          : kind == LaunchDirectPlayback ? "direct-playback" : "selection-window");
+            kind == LaunchSelfTest ? "self-test"
+            : kind == LaunchDirectPlayback ? "direct-playback" : "selection-window");
 
     switch (kind) {
-      case LaunchSelectWindow:
-      default:
-          /* Ordinary interactive launch: show the drag-and-drop picker and wait for
-           * six selected videos before any playback starts. */
+        case LaunchSelectWindow:
+        default:
+            /* Ordinary interactive launch: show the drag-and-drop picker and wait for
+            * six selected videos before any playback starts. */
         NSLog(@"[sixplayer] showing drag-and-drop selection window");
         g_selector = [SelectionWindowController new];
-           [g_selector show];
+            [g_selector show];
         break;
 
-      case LaunchDirectPlayback:
-      case LaunchSelfTest:
-          /* CLI path args (or a self-test run) bypass the picker and drive playback
-           * directly, preserving the documented workflow. */
+        case LaunchDirectPlayback:
+        case LaunchSelfTest:
+            /* CLI path args (or a self-test run) bypass the picker and drive playback
+            * directly, preserving the documented workflow. */
         if (!ensureLibVLCInstance()) {
             g_exitcode = 1;
-               [NSApp terminate:nil];
+                [NSApp terminate:nil];
             return;
-           }
+            }
         NSMutableArray *paths = [NSMutableArray array];
         resolvePaths(paths, g_argc, g_argv);
         if (paths.count < NCELLS) {
             NSLog(@"[sixplayer] WARNING: only %lu video path(s) resolved; need %d for a full grid",
                     (unsigned long)paths.count, NCELLS);
             if (g_exitcode < 2) g_exitcode = 2;
-           }
+            }
         for (NSString *p in paths) NSLog(@"[sixplayer] using: %@", p);
         startPlaybackWithPaths(paths);
         if (kind == LaunchSelfTest) scheduleSelfTestIfRequested();
         break;
-       }
+        }
 }
 
 - (void)applicationWillTerminate:(NSNotification *)note
@@ -952,36 +952,36 @@ static void scheduleSelfTestIfRequested(void)
 /* =========================  launch + selection UI + tests  ================== */
 
 /* Create the libvlc instance (once) and start the existing six-cell wall from a
- * chosen set of paths. This is the single handoff from "selected" to "playing". */
+    * chosen set of paths. This is the single handoff from "selected" to "playing". */
 static void startPlaybackWithPaths(NSArray *paths)
 {
     if (paths.count == 0) {
         NSLog(@"[sixplayer] refusing to start playback with no video paths");
         return;
-         }
+            }
     if (!ensureLibVLCInstance()) {
         g_exitcode = 1;
-             [NSApp terminate:nil];
+                [NSApp terminate:nil];
         return;
-         }
+            }
     NSLog(@"[sixplayer] starting 6-cell video wall from selection (%lu paths)",
-           (unsigned long)paths.count);
+            (unsigned long)paths.count);
     buildUI(paths);
 }
 
 /* A minimal app menu with a Cmd-Q "Quit", so the launcher always offers a way out
- * and the app menu exists even outside the full video wall. */
+    * and the app menu exists even outside the full video wall. */
 static void installMinimalMenu(void)
 {
     NSMenu *mainMenu = [NSMenu new];
     NSMenuItem *appItem = [NSMenuItem new];
     NSMenu *appMenu = [NSMenu new];
-         [appItem setSubmenu:appMenu];
-         [appMenu addItemWithTitle:@"Quit"
-                          action:@selector(terminate:)
-                   keyEquivalent:@"q"];
-         [mainMenu addItem:appItem];
-         [NSApp setMainMenu:mainMenu];
+            [appItem setSubmenu:appMenu];
+            [appMenu addItemWithTitle:@"Quit"
+                            action:@selector(terminate:)
+                    keyEquivalent:@"q"];
+            [mainMenu addItem:appItem];
+            [NSApp setMainMenu:mainMenu];
 }
 
 /* ---- the window's content view doubles as the Finder drop target ---- */
@@ -999,7 +999,7 @@ static void installMinimalMenu(void)
     self = [super initWithFrame:frame];
     if (self) {
             _highlight = NO;
-          [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
+            [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
         }
     return self;
 }
@@ -1059,25 +1059,25 @@ static void installMinimalMenu(void)
     ps.alignment = NSTextAlignmentCenter;
     NSDictionary *attr = @{
         NSFontAttributeName             : [NSFont systemFontOfSize:(_highlight ? 20.0f : 17.0f)
-                                              weight:NSFontWeightRegular],
+                                                weight:NSFontWeightRegular],
         NSForegroundColorAttributeName : _highlight ? [NSColor whiteColor]
-                                                     : [NSColor colorWithCalibratedWhite:0.85 alpha:1.0f],
+                                                        : [NSColor colorWithCalibratedWhite:0.85 alpha:1.0f],
         NSParagraphStyleAttributeName   : ps,
-         };
-           [prompt drawInRect:NSMakeRect(0.0f, NSMidY(b) - 16.0f, b.size.width, 32.0f)
+            };
+            [prompt drawInRect:NSMakeRect(0.0f, NSMidY(b) - 16.0f, b.size.width, 32.0f)
                 withAttributes:attr];
 }
 @end
 
 /* ---- the selection window: instructions, a list, status, and Clear/Remove/Play ---- */
 @interface SelectionWindowController () <NSWindowDelegate,
-                                     NSTableViewDataSource,
-                                     NSTableViewDelegate>
+                                        NSTableViewDataSource,
+                                        NSTableViewDelegate>
 - (void)handleDroppedURLs:(NSArray<NSURL *> *)urls;
 - (void)beginPlaybackWithPaths:(NSArray<NSString *> *)paths;
 - (void)refreshUI;
 - (NSTextField *)makeLabel:(NSString *)s multi:(BOOL)multi
-                     rect:(NSRect)r autoMask:(NSUInteger)mask;
+                        rect:(NSRect)r autoMask:(NSUInteger)mask;
 - (void)onClear:(id)sender;
 - (void)onRemove:(id)sender;
 - (void)onPlay:(id)sender;
@@ -1101,117 +1101,117 @@ static void installMinimalMenu(void)
 {
         _selection = [VideoWallSelection new];
 
-          CGFloat W = 560.0f, H = 620.0f, m = 24.0f, bw = W - 2.0 * m;
+            CGFloat W = 560.0f, H = 620.0f, m = 24.0f, bw = W - 2.0 * m;
     NSWindowStyleMask sm = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-      | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
+        | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     _window = [[NSWindow alloc]
-                 initWithContentRect:NSMakeRect(0, 0, W, H)
-                       styleMask:sm
-                         backing:NSBackingStoreBuffered
-                           defer:NO];
+                    initWithContentRect:NSMakeRect(0, 0, W, H)
+                        styleMask:sm
+                            backing:NSBackingStoreBuffered
+                            defer:NO];
         _window.title               = @"Video Wall Player -- pick 6 videos";
         _window.delegate            = self;
         _window.releasedWhenClosed = NO;
         [_window setMinSize:NSMakeSize(460.0f, 440.0f)];
 
-     /* The whole content view is the drop target, so dropping outside the list still counts. */
+        /* The whole content view is the drop target, so dropping outside the list still counts. */
     _dropView = [[DropView alloc] initWithFrame:NSMakeRect(0, 0, W, H)];
     _dropView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-     __weak SelectionWindowController *weakSelf = self;
+        __weak SelectionWindowController *weakSelf = self;
     _dropView.onFilesDropped = ^(NSArray<NSURL *> *urls) {
         [weakSelf handleDroppedURLs:urls];
-         };
-         [_window setContentView:_dropView];
+            };
+            [_window setContentView:_dropView];
 
     NSTextField *inst =
-         [self makeLabel:@"Drag one or more video files into the window, then press Play when six are ready.\n"
-                 "Each selected video fills one cell: A B C on the top row, D E F on the bottom row."
-                 multi:YES rect:NSMakeRect(m, H - 84.0f, bw, 78.0f)
-                 autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMaxYMargin];
+            [self makeLabel:@"Drag one or more video files into the window, then press Play when six are ready.\n"
+                    "Each selected video fills one cell: A B C on the top row, D E F on the bottom row."
+                    multi:YES rect:NSMakeRect(m, H - 84.0f, bw, 78.0f)
+                    autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMaxYMargin];
     [inst setFont:[NSFont systemFontOfSize:13.0f weight:NSFontWeightRegular]];
-         [_dropView addSubview:inst];
+            [_dropView addSubview:inst];
 
     _countLabel = [self makeLabel:@"0 of 6 videos selected" multi:NO
                 rect:NSMakeRect(m, H - 108.0f, bw, 22.0f)
                 autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMaxYMargin];
     [_countLabel setFont:[NSFont systemFontOfSize:15.0f weight:NSFontWeightMedium]];
-     [_dropView addSubview:_countLabel];
+        [_dropView addSubview:_countLabel];
 
     _list = [[NSTableView alloc] init];
     _list.rowHeight = 24.0f;
     _list.usesAlternatingRowBackgroundColors = YES;
     _list.allowsMultipleSelection = NO;
     _list.dataSource = self;
-   _list.delegate    = self;
-  NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"video"];
-   col.title = @"Cell    /   video file";
-   col.width = 300.0f;
+    _list.delegate    = self;
+    NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"video"];
+    col.title = @"Cell    /   video file";
+    col.width = 300.0f;
     [_list addTableColumn:col];
-     _list.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
+        _list.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
 
     NSScrollView *scroll = [[NSScrollView alloc]
-       initWithFrame:NSMakeRect(m, 118.0f, bw, H - 108.0f - 118.0f - m)];
+        initWithFrame:NSMakeRect(m, 118.0f, bw, H - 108.0f - 118.0f - m)];
     scroll.documentView        = _list;
     scroll.hasVerticalScroller = YES;
     scroll.borderType          = NSBezelBorder;
     scroll.autoresizingMask    = NSViewWidthSizable | NSViewHeightSizable;
-     [_dropView addSubview:scroll];
+        [_dropView addSubview:scroll];
 
     _statusLabel = [self makeLabel:@"" multi:YES
                 rect:NSMakeRect(m, 74.0f, bw, 38.0f)
                 autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin];
     [_statusLabel setFont:[NSFont systemFontOfSize:12.5f weight:NSFontWeightRegular]];
-     [_dropView addSubview:_statusLabel];
+        [_dropView addSubview:_statusLabel];
 
     _footerLabel =
-         [self makeLabel:@"Dropped folders, non-video files, and duplicates are skipped automatically."
-              multi:NO rect:NSMakeRect(m, 52.0f, bw, 18.0f)
-              autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin];
+            [self makeLabel:@"Dropped folders, non-video files, and duplicates are skipped automatically."
+                multi:NO rect:NSMakeRect(m, 52.0f, bw, 18.0f)
+                autoMask:NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin];
     [_footerLabel setFont:[NSFont systemFontOfSize:11.0f weight:NSFontWeightRegular]];
     [_footerLabel setTextColor:[NSColor colorWithCalibratedWhite:0.6 alpha:1.0f]];
-     [_dropView addSubview:_footerLabel];
+        [_dropView addSubview:_footerLabel];
 
     CGFloat by = 18.0f, bh = 32.0f;
     _clearButton = [NSButton buttonWithTitle:@"Clear" target:self action:@selector(onClear:)];
     _clearButton.bezelStyle = NSBezelStyleRounded;
     _clearButton.frame = NSMakeRect(m, by, 90.0f, bh);
     _clearButton.autoresizingMask = NSViewMinYMargin;
-     [_dropView addSubview:_clearButton];
+        [_dropView addSubview:_clearButton];
 
     _removeButton = [NSButton buttonWithTitle:@"Remove selected" target:self action:@selector(onRemove:)];
     _removeButton.bezelStyle = NSBezelStyleRounded;
     _removeButton.frame = NSMakeRect(m + 102.0f, by, 150.0f, bh);
     _removeButton.autoresizingMask = NSViewMinYMargin;
-     [_dropView addSubview:_removeButton];
+        [_dropView addSubview:_removeButton];
 
     _playButton = [NSButton buttonWithTitle:@"Play" target:self action:@selector(onPlay:)];
     _playButton.bezelStyle = NSBezelStyleRounded;
     _playButton.frame       = NSMakeRect(W - m - 120.0f, by, 120.0f, bh);
     _playButton.keyEquivalent = @"\r";            /* Return triggers Play when enabled */
     _playButton.autoresizingMask = NSViewMinYMargin | NSViewMaxXMargin;
-     [_dropView addSubview:_playButton];
+        [_dropView addSubview:_playButton];
 
-       _selection.onPlay = ^(NSArray<NSString *> *paths) {
-          [weakSelf beginPlaybackWithPaths:paths];
-          };
+        _selection.onPlay = ^(NSArray<NSString *> *paths) {
+            [weakSelf beginPlaybackWithPaths:paths];
+            };
 
-       [self refreshUI];
-       [_window center];
-       [_window makeKeyAndOrderFront:nil];
-       [NSApp activateIgnoringOtherApps:YES];
+        [self refreshUI];
+        [_window center];
+        [_window makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
 }
 
 - (NSTextField *)makeLabel:(NSString *)s
-                     multi:(BOOL)multi
-                     rect:(NSRect)r
-                 autoMask:(NSUInteger)mask
+                        multi:(BOOL)multi
+                        rect:(NSRect)r
+                    autoMask:(NSUInteger)mask
 {
     NSTextField *t = [NSTextField labelWithString:s];
-         [t setBezeled:NO];
-         [t setBordered:NO];
-         [t setEditable:NO];
-         [t setSelectable:NO];
-         [t setDrawsBackground:NO];
+            [t setBezeled:NO];
+            [t setBordered:NO];
+            [t setEditable:NO];
+            [t setSelectable:NO];
+            [t setDrawsBackground:NO];
     t.autoresizingMask = mask;
     t.frame            = r;
     if (multi) {
@@ -1227,10 +1227,10 @@ static void installMinimalMenu(void)
     NSMutableArray *paths = [NSMutableArray array];
     for (NSURL *u in urls) {
         if (u.isFileURL) {
-          NSString *p = u.path;
-          if (p.length > 0) [paths addObject:p];
-           }
-       }
+            NSString *p = u.path;
+            if (p.length > 0) [paths addObject:p];
+            }
+        }
     if (paths.count == 0) return;                  /* folders / other payloads: no file URLs */
         [_selection addPaths:paths];
         [self refreshUI];
@@ -1238,8 +1238,8 @@ static void installMinimalMenu(void)
 
 - (void)onClear:(id)sender
 {
-       [_selection clear];
-       [self refreshUI];
+        [_selection clear];
+        [self refreshUI];
 }
 
 - (void)onRemove:(id)sender
@@ -1251,20 +1251,20 @@ static void installMinimalMenu(void)
 
 - (void)onPlay:(id)sender
 {
-       [_selection play];                          /* fires onPlay when six are selected */
+        [_selection play];                          /* fires onPlay when six are selected */
 }
 
 - (void)beginPlaybackWithPaths:(NSArray<NSString *> *)paths
 {
-       [_window orderOut:nil];
+        [_window orderOut:nil];
     startPlaybackWithPaths(paths);
 }
 
 - (void)refreshUI
 {
-       [_list reloadData];
+        [_list reloadData];
     _countLabel.stringValue   = [NSString stringWithFormat:@"%ld of %d videos selected",
-                                  (long)_selection.count, NCELLS];
+                                    (long)_selection.count, NCELLS];
     _statusLabel.stringValue  = _selection.statusMessage;
     _playButton.enabled       = _selection.isComplete;
 }
@@ -1276,7 +1276,7 @@ static void installMinimalMenu(void)
 
 - (id)tableView:(NSTableView *)tv
 objectValueForTableColumn:(NSTableColumn *)column
-                     row:(NSInteger)row
+                        row:(NSInteger)row
 {
     NSArray *paths = _selection.selectedPaths;
     if (row < 0 || row >= (NSInteger)paths.count) return @"";
@@ -1288,58 +1288,58 @@ objectValueForTableColumn:(NSTableColumn *)column
 
 - (BOOL)windowShouldClose:(NSWindow *)w
 {
-       [NSApp terminate:nil];
+        [NSApp terminate:nil];
     return YES;
 }
 @end
 
 /* ---- headless selection self-test (SIXPLAY_SELTEST) ----
- * Exercises the testable seam -- model, routing, and handoff -- WITHOUT a window
- * and WITHOUT libVLC/full playback, as the issue allows for GUI tests. The
- * two-second playback self-test in the CLI render mode is left untouched. */
+    * Exercises the testable seam -- model, routing, and handoff -- WITHOUT a window
+    * and WITHOUT libVLC/full playback, as the issue allows for GUI tests. The
+    * two-second playback self-test in the CLI render mode is left untouched. */
 static int g_test_fail  = 0;
 static int g_test_total = 0;
 
 static void tcheck(const char *name, BOOL ok)
 {
-          g_test_total++;
+            g_test_total++;
     fprintf(stderr, "   [sixplayer]   %-46s %s\n", name, ok ? "PASS" : "FAIL");
     if (!ok) g_test_fail++;
 }
 
 static int runSelectionTests(void)
 {
-          g_test_fail  = 0;
-          g_test_total = 0;
+            g_test_fail  = 0;
+            g_test_total = 0;
     fprintf(stderr, "[sixplayer] selection self-test (model + handoff + routing)...\n");
 
-      /* ---- launch routing ---- */
-      {
+        /* ---- launch routing ---- */
+        {
         char *aWin[] = { "sixplayer" };
         char *aP1[]  = { "sixplayer", "/tmp/x.mp4" };
     tcheck("routing: no args -> selection window",
-                     computeLaunchKind(1, aWin, NULL) == LaunchSelectWindow);
+                        computeLaunchKind(1, aWin, NULL) == LaunchSelectWindow);
         tcheck("routing: CLI paths -> direct playback",
-                     computeLaunchKind(2, aP1, NULL) == LaunchDirectPlayback);
+                        computeLaunchKind(2, aP1, NULL) == LaunchDirectPlayback);
         tcheck("routing: self-test env -> self-test",
-                     computeLaunchKind(1, aWin, "3") == LaunchSelfTest);
-       }
+                        computeLaunchKind(1, aWin, "3") == LaunchSelfTest);
+        }
 
-      /* ---- Finder/Xcode launch has no helper-script VLC_PLUGIN_PATH ---- */
-      {
+        /* ---- Finder/Xcode launch has no helper-script VLC_PLUGIN_PATH ---- */
+        {
         const char *before = getenv("VLC_PLUGIN_PATH");
         char *saved = before ? strdup(before) : NULL;
 
         setenv("VLC_PLUGIN_PATH", "/tmp/custom-vlc-plugins", 1);
         configureVLCRuntimePaths();
         tcheck("vlc env: existing plugin path preserved",
-               strcmp(getenv("VLC_PLUGIN_PATH"), "/tmp/custom-vlc-plugins") == 0);
+                strcmp(getenv("VLC_PLUGIN_PATH"), "/tmp/custom-vlc-plugins") == 0);
 
         unsetenv("VLC_PLUGIN_PATH");
         configureVLCRuntimePaths();
         const char *defaulted = getenv("VLC_PLUGIN_PATH");
         tcheck("vlc env: desktop launch gets plugin path",
-               defaulted && strcmp(defaulted, "/Applications/VLC.app/Contents/MacOS/plugins") == 0);
+                defaulted && strcmp(defaulted, "/Applications/VLC.app/Contents/MacOS/plugins") == 0);
 
         if (saved) {
             setenv("VLC_PLUGIN_PATH", saved, 1);
@@ -1347,115 +1347,115 @@ static int runSelectionTests(void)
         } else {
             unsetenv("VLC_PLUGIN_PATH");
         }
-       }
+        }
 
-      /* ---- empty selection ---- */
+        /* ---- empty selection ---- */
     VideoWallSelection *sel = [VideoWallSelection new];
     tcheck("empty: count is 0", [sel count] == 0);
     tcheck("empty: Play disabled", !sel.isComplete);
     tcheck("empty: status is a hint", sel.statusMessage.length > 0);
 
-      /* ---- one valid keeps Play disabled ---- */
-       [sel addPaths:@[@"/tmp/clip1.mp4"]];
+        /* ---- one valid keeps Play disabled ---- */
+        [sel addPaths:@[@"/tmp/clip1.mp4"]];
     tcheck("one: count == 1", [sel count] == 1);
     tcheck("one: Play still disabled", !sel.isComplete);
     tcheck("one: one accepted", sel.lastAcceptedCount == 1);
 
-      /* ---- six valid enables Play + preserves drop order ---- */
+        /* ---- six valid enables Play + preserves drop order ---- */
     VideoWallSelection *s6 = [VideoWallSelection new];
     NSArray *six = @[@"/tmp/c1.mp4", @"/tmp/c2.m4v", @"/tmp/c3.mov",
-                      @"/tmp/c4.mkv", @"/tmp/c5.avi", @"/tmp/c6.MP4"];
-       [s6 addPaths:six];
+                        @"/tmp/c4.mkv", @"/tmp/c5.avi", @"/tmp/c6.MP4"];
+        [s6 addPaths:six];
     tcheck("six: count == 6", [s6 count] == 6);
     tcheck("six: Play enabled", s6.isComplete);
     tcheck("six: six accepted", s6.lastAcceptedCount == 6);
     tcheck("six: drop order preserved", [s6.selectedPaths isEqualToArray:six]);
 
-      /* ---- non-video ignored (count + a visible message) ---- */
+        /* ---- non-video ignored (count + a visible message) ---- */
     VideoWallSelection *sBad = [VideoWallSelection new];
-       [sBad addPaths:@[@"/tmp/a.txt", @"/tmp/b.log", @"/tmp/c.mp4"]];
+        [sBad addPaths:@[@"/tmp/a.txt", @"/tmp/b.log", @"/tmp/c.mp4"]];
     tcheck("non-video: only the video accepted", [sBad count] == 1);
     tcheck("non-video: two rejections recorded", sBad.lastRejectedCount == 2);
     tcheck("non-video: status has a message", sBad.statusMessage.length > 0);
     tcheck("non-video: message mentions a skip",
-             [sBad.statusMessage rangeOfString:@"skip"
-                                      options:NSCaseInsensitiveSearch].location != NSNotFound);
+                [sBad.statusMessage rangeOfString:@"skip"
+                                        options:NSCaseInsensitiveSearch].location != NSNotFound);
 
-      /* ---- folders ignored even when the name ends in a video extension ---- */
+        /* ---- folders ignored even when the name ends in a video extension ---- */
     VideoWallSelection *sFolder = [VideoWallSelection new];
-      {
+        {
         NSString *tmpdir = [NSTemporaryDirectory()
             stringByAppendingPathComponent:
-               [NSString stringWithFormat:@"sixplayer_sel_%@", [[NSUUID UUID] UUIDString]]];
+                [NSString stringWithFormat:@"sixplayer_sel_%@", [[NSUUID UUID] UUIDString]]];
         BOOL made = [NSFileManager.defaultManager
-                      createDirectoryAtPath:tmpdir withIntermediateDirectories:YES
-                                   attributes:nil error:NULL];
+                        createDirectoryAtPath:tmpdir withIntermediateDirectories:YES
+                                    attributes:nil error:NULL];
         if (made) {
-                  [sFolder addPaths:@[tmpdir, @"/tmp/good.mp4"]];
+                    [sFolder addPaths:@[tmpdir, @"/tmp/good.mp4"]];
             tcheck("folder: ignored (count == 1)", [sFolder count] == 1);
             tcheck("folder: one rejection", sFolder.lastRejectedCount == 1);
-                  [NSFileManager.defaultManager removeItemAtPath:tmpdir error:NULL];
+                    [NSFileManager.defaultManager removeItemAtPath:tmpdir error:NULL];
             } else {
             tcheck("folder: temp dir created", NO);
             }
         }
 
-       /* ---- over six: only six accepted, extras reported ---- */
+        /* ---- over six: only six accepted, extras reported ---- */
     VideoWallSelection *sOver = [VideoWallSelection new];
-       [sOver addPaths:@[@"/tmp/o1.mp4", @"/tmp/o2.mp4", @"/tmp/o3.mp4",
-                          @"/tmp/o4.mp4", @"/tmp/o5.mp4", @"/tmp/o6.mp4",
-                          @"/tmp/o6b.mp4", @"/tmp/o8.mp4"]];
+        [sOver addPaths:@[@"/tmp/o1.mp4", @"/tmp/o2.mp4", @"/tmp/o3.mp4",
+                            @"/tmp/o4.mp4", @"/tmp/o5.mp4", @"/tmp/o6.mp4",
+                            @"/tmp/o6b.mp4", @"/tmp/o8.mp4"]];
     tcheck("over: only 6 accepted", [sOver count] == 6);
     tcheck("over: selection complete", sOver.isComplete);
     tcheck("over: two extras rejected", sOver.lastRejectedCount == 2);
 
-       /* ---- duplicates ignored by default (dedup) ---- */
+        /* ---- duplicates ignored by default (dedup) ---- */
     VideoWallSelection *sDup = [VideoWallSelection new];
-       [sDup addPaths:@[@"/tmp/dup.mp4", @"/tmp/dup.mp4", @"/tmp/d2.mp4"]];
+        [sDup addPaths:@[@"/tmp/dup.mp4", @"/tmp/dup.mp4", @"/tmp/d2.mp4"]];
     tcheck("dedup: two unique kept", [sDup count] == 2);
     tcheck("dedup: one duplicate rejected", sDup.lastRejectedCount >= 1);
 
-       /* ---- removing one disables Play again when fewer than six remain ---- */
-       [sel addPaths:@[@"/tmp/clip2.m4v", @"/tmp/clip3.mov", @"/tmp/clip4.mkv",
-                         @"/tmp/clip5.avi", @"/tmp/clip6.mp4"]];           /* now at six */
+        /* ---- removing one disables Play again when fewer than six remain ---- */
+        [sel addPaths:@[@"/tmp/clip2.m4v", @"/tmp/clip3.mov", @"/tmp/clip4.mkv",
+                            @"/tmp/clip5.avi", @"/tmp/clip6.mp4"]];           /* now at six */
     tcheck("fill: complete again", sel.isComplete);
-       [sel removeAtCell:2];
+        [sel removeAtCell:2];
     tcheck("remove: count now 5", [sel count] == 5);
     tcheck("remove: Play disabled again", !sel.isComplete);
 
-       /* ---- clear returns to the empty state ---- */
-       [sel clear];
+        /* ---- clear returns to the empty state ---- */
+        [sel clear];
     tcheck("clear: count 0", [sel count] == 0);
     tcheck("clear: Play disabled", !sel.isComplete);
     tcheck("clear: status hint restored", sel.statusMessage.length > 0);
 
-       /* ---- pressing Play with six hands the six paths, in order ---- */
+        /* ---- pressing Play with six hands the six paths, in order ---- */
     VideoWallSelection *sHand = [VideoWallSelection new];
     NSArray *ordered = @[@"/tmp/vA.mp4", @"/tmp/vB.m4v", @"/tmp/vC.mov",
-                          @"/tmp/vD.mkv", @"/tmp/vE.avi", @"/tmp/vF.mp4"];
-       [sHand addPaths:ordered];
+                            @"/tmp/vD.mkv", @"/tmp/vE.avi", @"/tmp/vF.mp4"];
+        [sHand addPaths:ordered];
     NSMutableArray *captured = [NSMutableArray array];
-     __block BOOL fired = NO;
+        __block BOOL fired = NO;
     sHand.onPlay = ^(NSArray<NSString *> *paths) {
         fired = YES;
         [captured addObjectsFromArray:paths];
         };
-       [sHand play];
+        [sHand play];
     tcheck("handoff: fired with six", fired == YES && captured.count == 6);
     tcheck("handoff: order == shown == dropped",
-             [captured isEqualToArray:ordered] && [sHand.selectedPaths isEqualToArray:ordered]);
+                [captured isEqualToArray:ordered] && [sHand.selectedPaths isEqualToArray:ordered]);
 
-       /* ---- an incomplete selection must NOT fire the handoff ---- */
+        /* ---- an incomplete selection must NOT fire the handoff ---- */
     VideoWallSelection *sPart = [VideoWallSelection new];
-       [sPart addPaths:@[@"/tmp/p1.mp4"]];
-     __block BOOL fired2 = NO;
+        [sPart addPaths:@[@"/tmp/p1.mp4"]];
+        __block BOOL fired2 = NO;
     sPart.onPlay = ^(NSArray<NSString *> *paths) { fired2 = YES; };
-       [sPart play];
+        [sPart play];
     tcheck("incomplete: handoff not fired", fired2 == NO);
 
     fprintf(stderr,
-             "[sixplayer] selection self-test: %d check(s), %d failed -> %s\n",
-             g_test_total, g_test_fail, g_test_fail == 0 ? "PASS" : "FAIL");
+                "[sixplayer] selection self-test: %d check(s), %d failed -> %s\n",
+                g_test_total, g_test_fail, g_test_fail == 0 ? "PASS" : "FAIL");
     return g_test_fail == 0 ? 0 : 1;
 }
 
@@ -1481,12 +1481,12 @@ int main(int argc, char **argv)
 
         const char *seltest = getenv("SIXPLAY_SELTEST");
         if (seltest && seltest[0]) {
-             /* Headless selection model / handoff / routing check: no window, no
-              * libVLC, no run loop -- just drive the testable seam. */
+                /* Headless selection model / handoff / routing check: no window, no
+                * libVLC, no run loop -- just drive the testable seam. */
             int rc = runSelectionTests();
             fprintf(stderr, "[sixplayer] selection self-test rc=%d\n", rc);
             return rc;
-           }
+            }
 
         NSApplication *app = [NSApplication sharedApplication];
         AppDelegate *delegate = [AppDelegate new];
