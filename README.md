@@ -154,11 +154,13 @@ reported), the **Play** button toggles only with exactly six selected, Clear /
 Remove work, and that six paths hand off to the real player in **drop order**.
 It also checks the **drop‑replace filter seam** (only video files are accepted
 onto a cell; folders and non‑videos rejected) and the `replaceCellVideo` guard
-clauses (a bad cell / non‑video / empty path is refused). It exits non‑zero if
-any check fails:
+clauses (a bad cell / non‑video / empty path is refused). It also checks that
+the seek progress overlay draws above the startup cheat sheet, still draws when
+the cheat sheet is hidden, and that a seek marks the cell, unhides the overlay,
+and requests a redraw. It exits non‑zero if any check fails:
 
 ```
-[sixplayer] selection self-test: 42 check(s), 0 failed -> PASS
+[sixplayer] selection self-test: 47 check(s), 0 failed -> PASS
 ```
 
 This is the test for "the drop rules are right" — it runs anywhere, even from an

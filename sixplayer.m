@@ -48,6 +48,7 @@ extern int   libvlc_audio_get_mute(libvlc_media_player_t *);
 extern void  libvlc_audio_set_mute(libvlc_media_player_t *, int);
 extern void  libvlc_audio_toggle_mute(libvlc_media_player_t *);
 extern void  libvlc_audio_set_volume(libvlc_media_player_t *, int);
+extern int64_t libvlc_media_player_get_length(libvlc_media_player_t *);
 extern const char *libvlc_get_version(void);
 
 /* ---------------------------------- state ---------------------------------- */
@@ -59,7 +60,7 @@ extern const char *libvlc_get_version(void);
 @property (nonatomic) NSInteger cellIndex;                                 /* which g_cells slot this view fills (0..NCELLS-1) */
 - (void)registerAsVideoDropTarget;                                 /* issue #14: accept Finder video drops onto this cell */
 @end
-@interface OverlayView : NSView @end  /* full-screen top view; draws the cheat sheet */
+@interface OverlayView : NSView @end                               /* full-screen top view; draws the cheat sheet + progress bars */
 @interface KeyWindow  : NSWindow @end /* borderless, can become key, captures the keyboard */
 @interface AppDelegate : NSObject <NSApplicationDelegate> @end
 
@@ -80,7 +81,9 @@ struct Cell {
     libvlc_media_player_t *player;
     CellView              *view;
     NSWindow              *window;
+    CFAbsoluteTime         progressShownAt;   /* CFAbsoluteTime when overlay was last triggered */
 };
+
 static struct Cell g_cells[NCELLS];
 static NSArray *g_letters = nil;
 static NSWindow       *g_window  = nil;
@@ -91,6 +94,7 @@ static NSTimer        *g_tick    = nil;
 static BOOL            g_cheat   = YES;
 static long            SKIP_MS = 60000;
 static long            CONTROL_SKIP_MS = 300000;
+static CFAbsoluteTime  PROGRESS_VISIBLE_SECS = 3.0;
 static int             g_argc = 0;
 static char          **g_argv = NULL;
 static SelectionWindowController *g_selector = nil;     /* the launcher window (issue #4) */
@@ -127,6 +131,18 @@ static NSString *baseName(NSString *p)
 {
     NSRange r = [p rangeOfString:@"/" options:NSBackwardsSearch];
     return (r.location == NSNotFound) ? p : [p substringFromIndex:r.location + 1];
+}
+
+/* Format a millisecond duration as "M:SS" (hours prefixes "H:MM:SS" when present). */
+static NSString *timeText(int64_t ms)
+{
+    if (ms <= 0) return @"0:00";
+    long long totalSec = ms / 1000;
+    long long h = totalSec / 3600;
+    long long m = (totalSec % 3600) / 60;
+    long long s = totalSec % 60;
+    if (h > 0) return [NSString stringWithFormat:@"%lld:%02lld:%02lld", h, m, s];
+    return [NSString stringWithFormat:@"%lld:%02lld", m, s];
 }
 
 static BOOL isVideoPath(NSString *path)
@@ -400,6 +416,20 @@ static LaunchKind computeLaunchKind(int argc, char **argv, const char *selftestE
         if (argv[n] && argv[n][0] != '\0') positional++;
     return (positional > 0) ? LaunchDirectPlayback : LaunchSelectWindow;
 }
+
+static void showProgressOverlayForCell(int index)
+{
+    g_cells[index].progressShownAt = CFAbsoluteTimeGetCurrent();
+    if (g_overlay) {
+        g_overlay.hidden = NO;
+        [g_overlay setNeedsDisplay:YES];
+    }
+    if (g_overlayWindow) {
+        [g_overlayWindow orderFront:nil];
+        if (!g_cheat && g_window) [g_window makeKeyWindow];
+    }
+}
+
 static void seekBy(int index, long deltaMs)
 {
     if (index < 0 || index >= NCELLS) return;
@@ -410,6 +440,7 @@ static void seekBy(int index, long deltaMs)
     int64_t nt = t + (int64_t)deltaMs;
     if (nt < 0) nt = 0;
     libvlc_media_player_set_time(p, nt);
+    showProgressOverlayForCell(index);
     NSLog(@"[sixplayer] cell %d (%c): seek %+ld s", index + 1, g_cells[index].letter,
             (long)(deltaMs / 1000));
 }
@@ -707,9 +738,59 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
     __weak OverlayView *_self;
 }
 - (BOOL)isOpaque { return NO; }
-- (void)drawRect:(NSRect)r
+- (void)drawProgressOverlays
 {
-    if (!g_cheat) return;                                 /* hidden = pure video */
+    /* Per-cell seek progress bars, drawn on the full-screen overlay so they always
+        sit above the VLC video (same mechanism as the cheat sheet). Each cell shows
+        its own bar for PROGRESS_VISIBLE_SECS after a seek. */
+    for (int i = 0; i < NCELLS; i++) {
+        struct Cell *cell = &g_cells[i];
+        if (!cell->player || !cell->window) continue;
+        CFAbsoluteTime age = CFAbsoluteTimeGetCurrent() - cell->progressShownAt;
+        if (age < 0 || age > PROGRESS_VISIBLE_SECS) continue;      /* stale -> skip */
+
+        NSRect cellFrame = [self convertRect:[g_overlayWindow convertRectFromScreen:cell->window.frame]
+                                    fromView:nil];
+        if (NSWidth(cellFrame) <= 0 || NSHeight(cellFrame) <= 0) continue;
+
+        int64_t cur   = libvlc_media_player_get_time(cell->player);
+        int64_t total = libvlc_media_player_get_length(cell->player);
+        if (cur < 0) cur = 0;
+        double frac = 0.0;
+        if (total > 0) frac = (double)cur / (double)total;
+        if (frac > 1.0) frac = 1.0;
+
+        CGFloat barH = 28.0f;
+        NSRect band = NSMakeRect(NSMinX(cellFrame), NSMinY(cellFrame), NSWidth(cellFrame), barH);
+        [[NSColor colorWithCalibratedWhite:0 alpha:0.55f] set];
+        NSRectFill(band);
+
+        NSRect track = NSMakeRect(NSMinX(cellFrame), NSMinY(cellFrame) + barH - 3.0f,
+                                    NSWidth(cellFrame), 3.0f);
+        [[NSColor colorWithCalibratedWhite:1 alpha:0.25f] set];
+        NSRectFill(track);
+        NSRect fill = NSMakeRect(NSMinX(track), NSMinY(track), NSWidth(track) * frac, 3.0f);
+        [[NSColor systemBlueColor] set];
+        NSRectFill(fill);
+
+        NSMutableParagraphStyle *ps = [[NSMutableParagraphStyle alloc] init];
+        ps.alignment = NSTextAlignmentRight;
+        NSDictionary *attr = @{
+            NSFontAttributeName            : [NSFont monospacedDigitSystemFontOfSize:13.0f
+                                                        weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName : [NSColor whiteColor],
+            NSParagraphStyleAttributeName  : ps
+        };
+        NSString *label = [NSString stringWithFormat:@"%@  /  %@",
+                            timeText(cur), timeText(total)];
+        [label drawInRect:NSMakeRect(NSMinX(cellFrame) + 8.0f,
+                                    NSMinY(cellFrame) + (barH - 16.0f) / 2.0f,
+                                    NSWidth(cellFrame) - 16.0f, 16.0f)
+            withAttributes:attr];
+    }
+}
+- (void)drawCheatSheet
+{
     NSRect bounds = [self bounds];
     [[NSColor colorWithCalibratedWhite:0 alpha:0.45f] set];
     NSRectFill(bounds);
@@ -768,6 +849,12 @@ static void resolvePaths(NSMutableArray *paths, int argc, char **argv)
         yy -= cellLineHeight;
     }
 }
+- (void)drawRect:(NSRect)r
+{
+    (void)r;
+    if (g_cheat) [self drawCheatSheet];
+    [self drawProgressOverlays];          /* draw last so progress remains visible */
+}
 @end
 
 /* --------------------------------- build ----------------------------------- */
@@ -776,14 +863,16 @@ static void setCheatVisible(BOOL visible)
 {
     g_cheat = visible;
     if (g_overlay) {
-        g_overlay.hidden = !visible;
+        g_overlay.hidden = NO;                 /* keep overlay up: it draws progress bars too */
         [g_overlay setNeedsDisplay:YES];
     }
     if (g_overlayWindow) {
+        /* The overlay window must stay up so per-cell progress bars render even while the
+            cheat sheet is hidden. It is transparent, so the video still shows through. */
+        [g_overlayWindow orderFront:nil];
         if (visible) {
             [g_overlayWindow makeKeyAndOrderFront:nil];
         } else {
-            [g_overlayWindow orderOut:nil];
             [g_window makeKeyWindow];
         }
     }
@@ -887,8 +976,8 @@ static void buildUI(NSArray *paths)
                 i + 1, g_cells[i].letter, baseName(p), ret);
     }
 
-    g_tick = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) {
-        [g_overlay setNeedsDisplay:YES];
+    g_tick = [NSTimer scheduledTimerWithTimeInterval:0.033 repeats:YES block:^(NSTimer *t) {
+            [g_overlay setNeedsDisplay:YES];
         }];
     [[NSRunLoop mainRunLoop] addTimer:g_tick forMode:NSDefaultRunLoopMode];
 
@@ -1576,6 +1665,109 @@ static void tcheck(const char *name, BOOL ok)
     if (!ok) g_test_fail++;
 }
 
+@interface OverlayProbeView : OverlayView
+- (NSArray<NSString *> *)events;
+- (BOOL)redrawRequested;
+@end
+
+@implementation OverlayProbeView
+{
+    NSMutableArray<NSString *> *_events;
+    BOOL _redrawRequested;
+}
+
+- (instancetype)initWithFrame:(NSRect)frame
+{
+    self = [super initWithFrame:frame];
+    if (self) {
+        _events = [NSMutableArray array];
+        _redrawRequested = NO;
+    }
+    return self;
+}
+
+- (NSArray<NSString *> *)events
+{
+    return [_events copy];
+}
+
+- (BOOL)redrawRequested
+{
+    return _redrawRequested;
+}
+
+- (void)setNeedsDisplay:(BOOL)flag
+{
+    _redrawRequested = flag;
+    [super setNeedsDisplay:flag];
+}
+
+- (void)drawCheatSheet
+{
+    [_events addObject:@"cheat"];
+}
+
+- (void)drawProgressOverlays
+{
+    [_events addObject:@"progress"];
+}
+@end
+
+static void runProgressOverlayTests(void)
+{
+    /* ---- progress overlay must stay visible over the startup cheat sheet ---- */
+    {
+        BOOL savedCheat = g_cheat;
+
+        g_cheat = YES;
+        OverlayProbeView *probe = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        [probe drawRect:probe.bounds];
+        tcheck("progress overlay: drawn above cheat sheet",
+                [[probe events] isEqualToArray:@[@"cheat", @"progress"]]);
+
+        g_cheat = NO;
+        OverlayProbeView *hiddenCheatProbe = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        [hiddenCheatProbe drawRect:hiddenCheatProbe.bounds];
+        tcheck("progress overlay: draws when cheat hidden",
+                [[hiddenCheatProbe events] isEqualToArray:@[@"progress"]]);
+
+        g_cheat = savedCheat;
+    }
+
+    /* ---- seeking marks the cell and makes the overlay view redrawable ---- */
+    {
+        BOOL savedCheat = g_cheat;
+        OverlayView *savedOverlay = g_overlay;
+        NSWindow *savedOverlayWindow = g_overlayWindow;
+        NSWindow *savedWindow = g_window;
+        CFAbsoluteTime savedShownAt = g_cells[0].progressShownAt;
+
+        OverlayProbeView *overlay = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        overlay.hidden = YES;
+        [overlay setNeedsDisplay:NO];
+        g_cheat = NO;
+        g_overlay = overlay;
+        g_overlayWindow = nil;
+        g_window = nil;
+        g_cells[0].progressShownAt = 0.0;
+
+        CFAbsoluteTime before = CFAbsoluteTimeGetCurrent();
+        showProgressOverlayForCell(0);
+        CFAbsoluteTime after = CFAbsoluteTimeGetCurrent();
+
+        tcheck("progress overlay: seek records timestamp",
+                g_cells[0].progressShownAt >= before && g_cells[0].progressShownAt <= after);
+        tcheck("progress overlay: seek unhides overlay view", !overlay.hidden);
+        tcheck("progress overlay: seek requests redraw", [overlay redrawRequested]);
+
+        g_cheat = savedCheat;
+        g_overlay = savedOverlay;
+        g_overlayWindow = savedOverlayWindow;
+        g_window = savedWindow;
+        g_cells[0].progressShownAt = savedShownAt;
+    }
+}
+
 static int runSelectionTests(void)
 {
             g_test_fail  = 0;
@@ -1593,6 +1785,8 @@ static int runSelectionTests(void)
         tcheck("routing: self-test env -> self-test",
                         computeLaunchKind(1, aWin, "3") == LaunchSelfTest);
         }
+
+    runProgressOverlayTests();
 
         /* ---- Finder/Xcode launch has no helper-script VLC_PLUGIN_PATH ---- */
         {
