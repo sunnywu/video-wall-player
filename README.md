@@ -10,9 +10,11 @@ key unmutes any of them. Powered by the VLC that already ships with
 ~/vlc6/run.sh
 ```
 
-With no arguments it picks 6 random video files directly from `~/Downloads`
-and starts them together. If there are more than 6 videos, each launch shuffles
-the choice.
+With **no arguments** this opens the **drag‑and‑drop picker**: a window with a
+drop area, a running list and count of accepted videos, and a **Play** button
+that stays disabled until exactly **six** are selected. Drop video files, then
+press **Play** (or **Return**) and the picker closes and the six‑cell 3×2 wall
+starts — the same wall as before, muted by default.
 
 A centered cheat sheet overlays for 9 seconds then hides. Press `?` to show or
 hide it; Esc still works too.
@@ -23,13 +25,31 @@ Click the screen once after it appears so it has keyboard focus.
 
 Open `sixplayer.xcodeproj` in Xcode, select the `sixplayer` scheme, then build or
 run it. The app target links against the VLC libraries inside
-`/Applications/VLC.app`, so keep VLC installed there.
+`/Applications/VLC.app`, so keep VLC installed there for developer builds.
 
 The command-line launcher also builds through the Xcode project:
 
 ```sh
 ~/vlc6/run.sh
 ```
+
+## Create A Shareable App
+
+To create a copyable app for other people:
+
+```sh
+make package
+```
+
+This builds `dist/Video Wall Player.app`, embeds the VLC runtime files it needs,
+signs the app locally, and creates:
+
+* `dist/Video Wall Player.zip` — unzip, then drag the app into Applications.
+* `dist/Video Wall Player.dmg` — open, then drag the app to Applications.
+
+The packaged app does not require VLC to be installed separately. It is locally
+signed, not Apple-notarized, so macOS may require right-click → Open on first
+launch when sharing it outside this Mac.
 
 ## Key map — each video owns one letter
 
@@ -62,11 +82,39 @@ Cells are numbered `1→6`, left‑to‑right, top‑to‑bottom:
 +------+------+--------+
 ```
 
-## Choosing the 6 videos (priority order)
-1. **Command line:** pass up to 6 video paths to `~/vlc6/run.sh`.
-2. **Default:** 6 random video files from `~/Downloads`.
+## Choosing the 6 videos
+There are two ways videos get into the grid.
 
-Recognized default video extensions include `mp4`, `m4v`, `mov`, `mkv`, `avi`,
+**1 — The drag‑and‑drop picker (the default interactive launch).**
+Drag video files into the window, one at a time or a whole batch. The picker:
+* accepts **only video files** — folders and non‑video files are skipped
+  automatically, and a short status line reports what was skipped on the last
+  drop (a dropped *folder* is not a video even if its name ends in `.mp4`);
+* **de‑duplicates by path** — dropping the same file again does nothing;
+* **caps at six** — dropping more than six keeps the first six and tells you how
+  many extras were skipped;
+* shows the count as *"_N_ of 6 videos selected"* and **enables Play** the instant
+  six are present. Drop more, or click **Remove selected** / **Clear**, and the
+  button goes back to disabled.
+
+Press **Play** (or **Return**) and the picker closes and the six‑cell wall
+starts — muted by default, per‑video keys, `?`/Esc cheat sheet (see the key
+map below).
+
+**2 — The command line (bypasses the picker).**
+Pass up to six video paths and they play **directly**, with no picker:
+
+```sh
+~/vlc6/run.sh /path/a.mp4 /path/b.mp4 …     # up to 6, in this order
+```
+
+This is the fast path for scripts and the self‑tests. Direct‑playback runs the
+app's original `resolvePaths()`: your CLI paths play in the order given, and the
+random‑from‑`~/Downloads` default the app always used is **preserved in code** for
+non‑interactive callers — the interactive no‑path case now opens the picker
+instead of auto‑playing random files.
+
+Recognized video extensions include `mp4`, `m4v`, `mov`, `mkv`, `avi`,
 `webm`, `mpg`, `mpeg`, `wmv`, `flv`, `ts`, `mts`, and `m2ts`.
 
 ## macOS TCC
@@ -81,8 +129,29 @@ On macOS a non‑bundled/ad‑hoc executable can be **denied read access to
 ~/vlc6/run.sh selftest         # build the full UI, then auto-exit (SELFTIME s, default 3)
 SELFTIME=6 ~/vlc6/run.sh selftest
 ```
-`selftest` uses the same dynamic video selection as normal launch and verifies that all
+`selftest` uses the six videos copied from `~/Downloads` (or `test/`) and verifies that all
 6 players enter the playing state.
+
+### Selection self‑test (headless, no VLC, no window)
+
+```sh
+~/vlc6/run.sh seltest         # build, then run the picker's selection/routing checks
+```
+
+`seltest` exercises the **testable selection seam** — the `VideoWallSelection`
+model plus launch routing and the Play handoff — **without** opening a window or
+touching libVLC, as the issue allows for GUI-level testing. It confirms: folders /
+non‑videos / duplicate drops are skipped, the selection caps at six (extras
+reported), the **Play** button toggles only with exactly six selected, Clear /
+Remove work, and that six paths hand off to the real player in **drop order**.
+It exits non‑zero if any check fails:
+
+```
+[sixplayer] selection self-test: 35 check(s), 0 failed -> PASS
+```
+
+This is the test for "the drop rules are right" — it runs anywhere, even from an
+agent/SSH session, since it needs no GUI.
 
 ## Render self‑test — prove all 6 cells actually paint (not black)
 
@@ -129,13 +198,16 @@ RENDERCHECK result: 6/6 cells rendering -> PASS (all 6 non-black)
 ## Layout
 | File | What |
 |---|---|
-| `run.sh`      | build (if stale) + launch; supports `selftest` / `render` / `SKIP=` / `CONTROL_SKIP=` / path args |
-| `sixplayer.m` | the app (Objective‑C + Cocoa, ARC) |
+| `run.sh`      | build (if stale) + launch; supports `seltest` / `selftest` / `render` / `SKIP=` / `CONTROL_SKIP=` / path args |
+| `sixplayer.m` | the app + `VideoWallSelection` picker model + `SelectionWindowController` UI + the headless `seltest` |
 | `sixplayer.xcodeproj` | Xcode project for building the app bundle |
 
 ## Verification done
 * Compiles clean on Apple Silicon, links `libvlc.dylib`/`libvlccore.dylib` from the
   system VLC via `@rpath`.
+* `seltest`: the picker's selection model + routing + Play handoff pass all 33
+  headless checks (skips folders / non‑videos / duplicates, caps at six with extras
+  reported, Play toggles only with six, Clear/Remove, order‑preserving handoff).
 * Self‑test: **all 6 players live**, embedded, starting **muted**.
 
 ## Prerequisites
