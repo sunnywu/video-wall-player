@@ -1667,11 +1667,13 @@ static void tcheck(const char *name, BOOL ok)
 
 @interface OverlayProbeView : OverlayView
 - (NSArray<NSString *> *)events;
+- (BOOL)redrawRequested;
 @end
 
 @implementation OverlayProbeView
 {
     NSMutableArray<NSString *> *_events;
+    BOOL _redrawRequested;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -1679,6 +1681,7 @@ static void tcheck(const char *name, BOOL ok)
     self = [super initWithFrame:frame];
     if (self) {
         _events = [NSMutableArray array];
+        _redrawRequested = NO;
     }
     return self;
 }
@@ -1686,6 +1689,17 @@ static void tcheck(const char *name, BOOL ok)
 - (NSArray<NSString *> *)events
 {
     return [_events copy];
+}
+
+- (BOOL)redrawRequested
+{
+    return _redrawRequested;
+}
+
+- (void)setNeedsDisplay:(BOOL)flag
+{
+    _redrawRequested = flag;
+    [super setNeedsDisplay:flag];
 }
 
 - (void)drawCheatSheet
@@ -1698,6 +1712,61 @@ static void tcheck(const char *name, BOOL ok)
     [_events addObject:@"progress"];
 }
 @end
+
+static void runProgressOverlayTests(void)
+{
+    /* ---- progress overlay must stay visible over the startup cheat sheet ---- */
+    {
+        BOOL savedCheat = g_cheat;
+
+        g_cheat = YES;
+        OverlayProbeView *probe = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        [probe drawRect:probe.bounds];
+        tcheck("progress overlay: drawn above cheat sheet",
+                [[probe events] isEqualToArray:@[@"cheat", @"progress"]]);
+
+        g_cheat = NO;
+        OverlayProbeView *hiddenCheatProbe = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        [hiddenCheatProbe drawRect:hiddenCheatProbe.bounds];
+        tcheck("progress overlay: draws when cheat hidden",
+                [[hiddenCheatProbe events] isEqualToArray:@[@"progress"]]);
+
+        g_cheat = savedCheat;
+    }
+
+    /* ---- seeking marks the cell and makes the overlay view redrawable ---- */
+    {
+        BOOL savedCheat = g_cheat;
+        OverlayView *savedOverlay = g_overlay;
+        NSWindow *savedOverlayWindow = g_overlayWindow;
+        NSWindow *savedWindow = g_window;
+        CFAbsoluteTime savedShownAt = g_cells[0].progressShownAt;
+
+        OverlayProbeView *overlay = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        overlay.hidden = YES;
+        [overlay setNeedsDisplay:NO];
+        g_cheat = NO;
+        g_overlay = overlay;
+        g_overlayWindow = nil;
+        g_window = nil;
+        g_cells[0].progressShownAt = 0.0;
+
+        CFAbsoluteTime before = CFAbsoluteTimeGetCurrent();
+        showProgressOverlayForCell(0);
+        CFAbsoluteTime after = CFAbsoluteTimeGetCurrent();
+
+        tcheck("progress overlay: seek records timestamp",
+                g_cells[0].progressShownAt >= before && g_cells[0].progressShownAt <= after);
+        tcheck("progress overlay: seek unhides overlay view", !overlay.hidden);
+        tcheck("progress overlay: seek requests redraw", [overlay redrawRequested]);
+
+        g_cheat = savedCheat;
+        g_overlay = savedOverlay;
+        g_overlayWindow = savedOverlayWindow;
+        g_window = savedWindow;
+        g_cells[0].progressShownAt = savedShownAt;
+    }
+}
 
 static int runSelectionTests(void)
 {
@@ -1717,16 +1786,7 @@ static int runSelectionTests(void)
                         computeLaunchKind(1, aWin, "3") == LaunchSelfTest);
         }
 
-        /* ---- progress overlay must stay visible over the startup cheat sheet ---- */
-        {
-        BOOL savedCheat = g_cheat;
-        g_cheat = YES;
-        OverlayProbeView *probe = [[OverlayProbeView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
-        [probe drawRect:probe.bounds];
-        tcheck("progress overlay: drawn above cheat sheet",
-                [[probe events] isEqualToArray:@[@"cheat", @"progress"]]);
-        g_cheat = savedCheat;
-        }
+    runProgressOverlayTests();
 
         /* ---- Finder/Xcode launch has no helper-script VLC_PLUGIN_PATH ---- */
         {
