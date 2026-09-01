@@ -41,6 +41,7 @@ cd "$DIR"
 if [ ! -x ./sixplayer ] || [ sixplayer.m -nt sixplayer ]; then
   echo "[run.sh] building sixplayer ..."
   xcodebuild -project sixplayer.xcodeproj -scheme sixplayer -configuration Release \
+    -derivedDataPath "$DIR/build/DerivedData" \
     CONFIGURATION_BUILD_DIR="$DIR/build" >/dev/null
   cp "$DIR/build/sixplayer.app/Contents/MacOS/sixplayer" ./sixplayer
 fi

@@ -97,6 +97,7 @@ static SelectionWindowController *g_selector = nil;     /* the launcher window (
 static void buildUI(NSArray *paths);
 static void startPlaybackWithPaths(NSArray *paths);
 static void installMinimalMenu(void);
+static BOOL ensureLibVLCInstance(void);
 static void scheduleSelfTestIfRequested(void);
 static int  runSelectionTests(void);
 
@@ -141,6 +142,32 @@ static void shufflePaths(NSMutableArray *items)
         NSUInteger j = arc4random_uniform((uint32_t)i);
         [items exchangeObjectAtIndex:i - 1 withObjectAtIndex:j];
     }
+}
+
+static void configureVLCRuntimePaths(void)
+{
+    const char *plugins = getenv("VLC_PLUGIN_PATH");
+    if (plugins && plugins[0]) return;
+
+    const char *defaultPlugins = "/Applications/VLC.app/Contents/MacOS/plugins";
+    if (setenv("VLC_PLUGIN_PATH", defaultPlugins, 0) == 0) {
+        NSLog(@"[sixplayer] VLC_PLUGIN_PATH defaulted to %s", defaultPlugins);
+    } else {
+        NSLog(@"[sixplayer] WARNING: failed to set VLC_PLUGIN_PATH to %s", defaultPlugins);
+    }
+}
+
+static BOOL ensureLibVLCInstance(void)
+{
+    if (g_inst) return YES;
+
+    configureVLCRuntimePaths();
+    g_inst = libvlc_new(0, NULL);
+    if (!g_inst) {
+        fprintf(stderr, "libvlc_new FAILED\n");
+        return NO;
+    }
+    return YES;
 }
 
 /* ============================================================================ */
@@ -869,9 +896,7 @@ static void scheduleSelfTestIfRequested(void)
       case LaunchSelfTest:
           /* CLI path args (or a self-test run) bypass the picker and drive playback
            * directly, preserving the documented workflow. */
-        if (!g_inst) g_inst = libvlc_new(0, NULL);
-        if (!g_inst) {
-            fprintf(stderr, "libvlc_new FAILED\n");
+        if (!ensureLibVLCInstance()) {
             g_exitcode = 1;
                [NSApp terminate:nil];
             return;
@@ -907,9 +932,7 @@ static void startPlaybackWithPaths(NSArray *paths)
         NSLog(@"[sixplayer] refusing to start playback with no video paths");
         return;
          }
-    if (!g_inst) g_inst = libvlc_new(0, NULL);
-    if (!g_inst) {
-        fprintf(stderr, "libvlc_new FAILED\n");
+    if (!ensureLibVLCInstance()) {
         g_exitcode = 1;
              [NSApp terminate:nil];
         return;
@@ -1267,12 +1290,36 @@ static int runSelectionTests(void)
       {
         char *aWin[] = { "sixplayer" };
         char *aP1[]  = { "sixplayer", "/tmp/x.mp4" };
-        tcheck("routing: no args -> selection window",
+    tcheck("routing: no args -> selection window",
                      computeLaunchKind(1, aWin, NULL) == LaunchSelectWindow);
         tcheck("routing: CLI paths -> direct playback",
                      computeLaunchKind(2, aP1, NULL) == LaunchDirectPlayback);
         tcheck("routing: self-test env -> self-test",
                      computeLaunchKind(1, aWin, "3") == LaunchSelfTest);
+       }
+
+      /* ---- Finder/Xcode launch has no helper-script VLC_PLUGIN_PATH ---- */
+      {
+        const char *before = getenv("VLC_PLUGIN_PATH");
+        char *saved = before ? strdup(before) : NULL;
+
+        setenv("VLC_PLUGIN_PATH", "/tmp/custom-vlc-plugins", 1);
+        configureVLCRuntimePaths();
+        tcheck("vlc env: existing plugin path preserved",
+               strcmp(getenv("VLC_PLUGIN_PATH"), "/tmp/custom-vlc-plugins") == 0);
+
+        unsetenv("VLC_PLUGIN_PATH");
+        configureVLCRuntimePaths();
+        const char *defaulted = getenv("VLC_PLUGIN_PATH");
+        tcheck("vlc env: desktop launch gets plugin path",
+               defaulted && strcmp(defaulted, "/Applications/VLC.app/Contents/MacOS/plugins") == 0);
+
+        if (saved) {
+            setenv("VLC_PLUGIN_PATH", saved, 1);
+            free(saved);
+        } else {
+            unsetenv("VLC_PLUGIN_PATH");
+        }
        }
 
       /* ---- empty selection ---- */
