@@ -5,3 +5,7 @@ sixplayer
 test/
 *.xcuserstate
 *.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Local AI model runtime
+dflash-env/
+.venv-mlx-dspark/
